@@ -29,7 +29,10 @@ const {
   getAllUsers,
   getActiveSubscribers,
   getDatabaseMetrics,
-  getRecentLogs
+  getRecentLogs,
+  restoreAuthFromDb,
+  syncAllAuthFilesToDb,
+  clearAuthFromDb
 } = require("./db");
 
 const {
@@ -439,6 +442,7 @@ async function startWhatsAppBot() {
   }
 
   const authDir = path.join(__dirname, "../auth_info");
+  await restoreAuthFromDb(authDir);
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   
   let version = [2, 3000, 1015901307];
@@ -461,7 +465,14 @@ async function startWhatsAppBot() {
     syncFullHistory: false
   });
 
-  sock.ev.on("creds.update", saveCreds);
+  sock.ev.on("creds.update", async () => {
+    try {
+      await saveCreds();
+      await syncAllAuthFilesToDb(authDir);
+    } catch (e) {
+      console.error("Auth sync error:", e.message);
+    }
+  });
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -551,6 +562,7 @@ async function startWhatsAppBot() {
         }
       } else {
         qrPrintedInTerminal = false;
+        await clearAuthFromDb();
         addLog("❌ Logged out from WhatsApp. Clear auth_info folder and restart bot to scan a new QR code.");
       }
     }

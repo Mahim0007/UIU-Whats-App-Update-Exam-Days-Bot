@@ -29,7 +29,7 @@ console.log(`💡 Note: Only Mid-Term progression is shown now. Switches to Fina
 console.log("==========================================================\n");
 
 const config = loadConfig();
-const port = config.webPort || 3000;
+const port = process.env.PORT || config.webPort || 3000;
 
 // 1. Start the visual Web Dashboard
 startWebServer(port);

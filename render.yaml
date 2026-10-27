@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: uiu-exam-countdown-bot
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PG_HOST
+        sync: false
+      - key: PG_PORT
+        sync: false
+      - key: PG_USER
+        sync: false
+      - key: PG_PASSWORD
+        sync: false
+      - key: PG_DATABASE
+        sync: false

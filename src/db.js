@@ -7,6 +7,8 @@
  */
 
 require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
 const { Pool } = require("pg");
 
 const pool = new Pool({
@@ -58,6 +60,12 @@ async function initDatabase() {
             name VARCHAR(255),
             command TEXT,
             created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS baileys_auth (
+            key VARCHAR(255) PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
           );
 
           CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
@@ -271,6 +279,68 @@ async function getActiveSubscribers() {
   }
 }
 
+/**
+ * Restore WhatsApp Auth Session files from PostgreSQL to local folder
+ */
+async function restoreAuthFromDb(authDir) {
+  try {
+    await initDatabase();
+    const res = await pool.query("SELECT key, value FROM baileys_auth;");
+    if (res.rows && res.rows.length > 0) {
+      if (!fs.existsSync(authDir)) {
+        fs.mkdirSync(authDir, { recursive: true });
+      }
+      for (const row of res.rows) {
+        fs.writeFileSync(path.join(authDir, row.key), row.value, "utf8");
+      }
+      console.log(`📥 [Cloud Auth] Restored ${res.rows.length} session credentials from PostgreSQL database.`);
+      return true;
+    }
+  } catch (err) {
+    console.error("⚠️ [Cloud Auth] Could not restore session from DB:", err.message);
+  }
+  return false;
+}
+
+/**
+ * Sync all files from local authDir to PostgreSQL database
+ */
+async function syncAllAuthFilesToDb(authDir) {
+  try {
+    if (!fs.existsSync(authDir)) return;
+    await initDatabase();
+    const files = fs.readdirSync(authDir);
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const filePath = path.join(authDir, file);
+      try {
+        const content = fs.readFileSync(filePath, "utf8");
+        await pool.query(
+          `INSERT INTO baileys_auth (key, value, updated_at) 
+           VALUES ($1, $2, CURRENT_TIMESTAMP) 
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
+          [file, content]
+        );
+      } catch (e) {}
+    }
+  } catch (err) {
+    console.error("⚠️ [Cloud Auth] Could not sync session to DB:", err.message);
+  }
+}
+
+/**
+ * Clear session from DB on explicit logout
+ */
+async function clearAuthFromDb() {
+  try {
+    await initDatabase();
+    await pool.query("DELETE FROM baileys_auth;");
+    console.log("🧹 [Cloud Auth] Cleared session from PostgreSQL database.");
+  } catch (err) {
+    console.error("⚠️ [Cloud Auth] Could not clear session from DB:", err.message);
+  }
+}
+
 module.exports = {
   pool,
   initDatabase,
@@ -280,6 +350,9 @@ module.exports = {
   getActiveSubscribers,
   getRecentLogs,
   getDatabaseMetrics,
-  updateUserStatus
+  updateUserStatus,
+  restoreAuthFromDb,
+  syncAllAuthFilesToDb,
+  clearAuthFromDb
 };
 

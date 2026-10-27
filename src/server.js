@@ -55,6 +55,14 @@ function startWebServer(port = 3000) {
   app.use(express.json({ limit: "50kb" }));
   app.use(express.static(path.join(__dirname, "../public")));
 
+  // Health check endpoints for Render and UptimeRobot
+  app.get("/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  app.get("/ping", (req, res) => {
+    res.send("pong");
+  });
 
   // 1. API Status Endpoint
   app.get("/api/status", async (req, res) => {
@@ -255,8 +263,8 @@ function startWebServer(port = 3000) {
     }
   });
 
-  app.listen(port, "127.0.0.1", () => {
-    console.log(`🔒 Secure Web Dashboard running at: http://localhost:${port}`);
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`🔒 Web Dashboard running on port: ${port}`);
   });
 }
 
