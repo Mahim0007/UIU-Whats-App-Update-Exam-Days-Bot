@@ -73,16 +73,16 @@ function startWebServer(port = 3000) {
     res.send("pong");
   });
 
-  // 1-Click WhatsApp Chat Redirect (Opens bot chat directly with pre-filled 'Hi')
+  // Dedicated Web Message Box Page: Serves the full-screen interactive web chat app
   app.get("/chat", (req, res) => {
-    const botPhone = botState.userInfo?.phone || process.env.BOT_PHONE || "8801837228494";
-    res.redirect(`https://wa.me/${botPhone}?text=Hi`);
+    res.sendFile(path.join(__dirname, "../public/chat.html"));
   });
 
-  // Direct Chat QR Code Image Endpoint (Scannable by phone camera to open chat directly)
+  // Direct Chat QR Code Image: Scannable by phone camera to open Web Chat Box directly!
   app.get("/qr/chat", async (req, res) => {
-    const botPhone = botState.userInfo?.phone || process.env.BOT_PHONE || "8801837228494";
-    const link = `https://wa.me/${botPhone}?text=Hi`;
+    const host = req.get("host") || "uiu-whats-app-update-exam-days-bot.onrender.com";
+    const proto = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+    const link = `${proto}://${host}/chat`;
     try {
       const buffer = await QRCode.toBuffer(link, {
         width: 380,
@@ -243,8 +243,9 @@ function startWebServer(port = 3000) {
     const countdown = getCountdownStatus();
     const calendar = loadCalendarData();
     const subscribers = loadSubscribers();
-    const botPhone = botState.userInfo?.phone || process.env.BOT_PHONE || "8801837228494";
-    const waLink = `https://wa.me/${botPhone}?text=Hi`;
+    const host = req.get("host") || "uiu-whats-app-update-exam-days-bot.onrender.com";
+    const proto = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+    const chatLink = `${proto}://${host}/chat`;
 
     res.json({
       bot: {
@@ -253,7 +254,8 @@ function startWebServer(port = 3000) {
         lastBroadcast: botState.lastBroadcast,
         qrDataUrl: botState.qrDataUrl,
         logs: botState.logs,
-        waLink
+        waLink: chatLink,
+        chatLink
       },
       config: loadConfig(),
       countdown,
