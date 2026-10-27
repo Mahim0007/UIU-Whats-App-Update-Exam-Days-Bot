@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const {
   botState,
+  startWhatsAppBot,
   broadcastToSubscribers,
   broadcastScheduleUpdate,
   sendDailyBroadcast,
@@ -123,6 +124,11 @@ function startWebServer(port = 3000) {
         </body>
         </html>
       `);
+    // If bot is disconnected and no QR is generated yet, proactively trigger startWhatsAppBot
+    if (botState.status === "disconnected") {
+      try {
+        startWhatsAppBot();
+      } catch (e) {}
     }
 
     res.send(`
@@ -144,6 +150,16 @@ function startWebServer(port = 3000) {
       </body>
       </html>
     `);
+  });
+
+  // Reconnection trigger endpoint
+  app.post("/api/reconnect", (req, res) => {
+    try {
+      startWhatsAppBot();
+      res.json({ success: true, message: "Reconnection process initiated" });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
+    }
   });
 
   // 1. API Status Endpoint

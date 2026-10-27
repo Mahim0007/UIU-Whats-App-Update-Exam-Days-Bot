@@ -563,7 +563,15 @@ async function startWhatsAppBot() {
       } else {
         qrPrintedInTerminal = false;
         await clearAuthFromDb();
-        addLog("❌ Logged out from WhatsApp. Clear auth_info folder and restart bot to scan a new QR code.");
+        try {
+          if (fs.existsSync(authDir)) {
+            fs.rmSync(authDir, { recursive: true, force: true });
+          }
+        } catch (e) {}
+        addLog("❌ WhatsApp session ended or logged out. Generating new QR code in 3 seconds...");
+        setTimeout(() => {
+          startWhatsAppBot();
+        }, 3000);
       }
     }
   });
@@ -575,6 +583,9 @@ async function startWhatsAppBot() {
     for (const msg of messages) {
       if (!msg.message) continue;
       
+      // CRITICAL: Ignore messages sent by the bot/linked account to avoid infinite echo loops
+      if (msg.key.fromMe) continue;
+
       const remoteJid = msg.key.remoteJid;
       if (!remoteJid || remoteJid.includes("@broadcast")) continue;
 
@@ -585,7 +596,7 @@ async function startWhatsAppBot() {
           addLog(`⚠️ Rate limit triggered for ${remoteJid} (Spam prevention)`);
           try {
             await sock.sendMessage(remoteJid, {
-              text: "⚠️ *Slow down!* Please wait a few seconds before sending another command to prevent spamming."
+              text: "⚠️ *Slow down!* Please wait a few seconds before sending another message to prevent spamming."
             }, { quoted: msg });
           } catch (e) {}
         }
@@ -602,6 +613,10 @@ async function startWhatsAppBot() {
       const text = sanitizeInput(rawText, 500);
       if (!text) continue;
 
+      const isGroup = remoteJid.endsWith("@g.us");
+      const senderName = msg.pushName || "Student";
+      const senderPhone = remoteJid.replace(/[^0-9]/g, "");
+
       const cleanSenderName = sanitizeInput(senderName, 100);
       const cleanSenderPhone = sanitizeInput(senderPhone, 50);
 
@@ -614,7 +629,7 @@ async function startWhatsAppBot() {
 
       const lower = text.toLowerCase();
 
-      addLog(`📩 Message from ${remoteJid}: "${text}"`);
+      addLog(`📩 Message from ${remoteJid} (${cleanSenderName}): "${text}"`);
 
       // 1. OPTIONAL: UNSUBSCRIBE / STOP
       if (
@@ -642,7 +657,7 @@ async function startWhatsAppBot() {
       // 3. ZERO-COMMAND WORKFLOW: ANY MESSAGE (HI / HELLO / TEXT)
       // Automatically subscribes the user permanently & sends full all-in-one daily status!
       else {
-        addSubscriber(remoteJid, senderName, senderPhone);
+        addSubscriber(remoteJid, cleanSenderName, cleanSenderPhone);
         updateUserStatus(remoteJid, "subscribed");
         const status = getCountdownStatus();
         const reply = formatWelcomeReply(status);
