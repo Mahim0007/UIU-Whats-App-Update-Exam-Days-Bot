@@ -64,6 +64,88 @@ function startWebServer(port = 3000) {
     res.send("pong");
   });
 
+  // Dedicated Full-Screen QR Code page for effortless scanning
+  app.get("/qr", (req, res) => {
+    if (botState.status === "connected") {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Bot Connected</title>
+          <style>
+            body { background: #0b0f19; color: white; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; }
+            .card { background: #161f30; padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); max-width: 400px; }
+            h2 { color: #22c55e; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>✅ WhatsApp Bot Connected!</h2>
+            <p>Logged in as: <b>+${botState.userInfo?.phone || 'Active'}</b></p>
+            <p style="color: #94a3b8;">Bot is running 24/7 online. No scan needed.</p>
+            <a href="/" style="display: inline-block; margin-top: 15px; color: #38bdf8; text-decoration: none;">← Open Web Dashboard</a>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
+    if (botState.qrDataUrl) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta http-equiv="refresh" content="6">
+          <title>Scan WhatsApp QR Code</title>
+          <style>
+            body { background: #0b0f19; color: white; font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; text-align: center; box-sizing: border-box; }
+            .card { background: #161f30; padding: 26px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); max-width: 360px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+            img { background: white; padding: 12px; border-radius: 14px; width: 250px; height: 250px; display: block; margin: 0 auto; }
+            h2 { color: #38bdf8; margin-top: 0; font-size: 1.3rem; }
+            p { color: #cbd5e1; font-size: 14px; line-height: 1.6; margin: 15px 0 5px; }
+            .guide { text-align: left; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 10px; margin-top: 15px; font-size: 13px; color: #94a3b8; }
+            .guide b { color: #fff; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>📲 Scan WhatsApp QR</h2>
+            <img src="${botState.qrDataUrl}" alt="WhatsApp QR Code" />
+            <div class="guide">
+              1. Open WhatsApp on your phone<br>
+              2. Go to <b>Settings ➔ Linked Devices</b><br>
+              3. Tap <b>Link a Device</b> & scan this code
+            </div>
+            <p style="color: #64748b; font-size: 11px;">🔄 Auto-refreshes every 6 seconds</p>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="refresh" content="3">
+        <title>Generating QR...</title>
+        <style>
+          body { background: #0b0f19; color: white; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div>
+          <h2>🔄 Initializing WhatsApp Connection...</h2>
+          <p style="color: #94a3b8;">Generating QR Code, please wait 3 seconds...</p>
+        </div>
+      </body>
+      </html>
+    `);
+  });
+
   // 1. API Status Endpoint
   app.get("/api/status", async (req, res) => {
     const countdown = getCountdownStatus();
