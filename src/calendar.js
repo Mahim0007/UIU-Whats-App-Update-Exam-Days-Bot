@@ -214,25 +214,28 @@ function getCountdownStatus(targetNow = new Date()) {
 
   // Upcoming Events (Next 4)
   const events = data.events || [];
-  const upcomingEvents = events
-    .map(ev => {
-      const evDate = parseDate(ev.date);
-      const diff = Math.round((evDate - now) / (1000 * 60 * 60 * 24));
-      return { ...ev, daysUntil: diff };
-    })
+  const processedEvents = events.map(ev => {
+    const evDate = parseDate(ev.date);
+    const diff = Math.round((evDate - now) / (1000 * 60 * 60 * 24));
+    return {
+      ...ev,
+      formattedDate: formatDate(evDate),
+      daysUntil: diff,
+      isToday: diff === 0
+    };
+  });
+
+  const upcomingEvents = processedEvents
     .filter(ev => ev.daysUntil >= 0)
     .sort((a, b) => a.daysUntil - b.daysUntil)
     .slice(0, 4);
 
+  // Today Events (Any event or milestone happening TODAY)
+  const todayEvents = processedEvents.filter(ev => ev.isToday);
+
   // Next Installment
-  const nextInstallment = events
-    .filter(ev => ev.type === "installment")
-    .map(ev => {
-      const evDate = parseDate(ev.date);
-      const diff = Math.round((evDate - now) / (1000 * 60 * 60 * 24));
-      return { ...ev, daysUntil: diff };
-    })
-    .filter(ev => ev.daysUntil >= 0)
+  const nextInstallment = processedEvents
+    .filter(ev => ev.type === "installment" && ev.daysUntil >= 0)
     .sort((a, b) => a.daysUntil - b.daysUntil)[0] || null;
 
   // Daily Quote
@@ -243,6 +246,8 @@ function getCountdownStatus(targetNow = new Date()) {
   const quote = quotes[Math.abs(dayIndex) % quotes.length];
 
   return {
+    todayEvents,
+    targetDate: now,
     today: formatDate(now),
     university: data.university,
     trimester: data.trimester,

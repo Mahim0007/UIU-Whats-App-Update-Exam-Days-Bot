@@ -588,7 +588,8 @@ async function startWhatsAppBot() {
         lower === "!fee" ||
         lower === "fees"
       ) {
-        const reply = formatInstallmentsReply();
+        const status = getCountdownStatus();
+        const reply = formatInstallmentsReply(status);
         await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
         addLog(`💬 Replied with Installments to ${remoteJid}`);
       }

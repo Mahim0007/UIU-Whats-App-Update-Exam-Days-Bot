@@ -46,21 +46,37 @@ function formatDailyBroadcast(status, slot = "auto") {
   let eventsSection = "";
   if (status.upcomingEvents && status.upcomingEvents.length > 0) {
     eventsSection = "📌 *Upcoming Academic Events:*\n" + status.upcomingEvents
-      .map(ev => `• *${ev.date}:* ${ev.title} _(${ev.daysUntil === 0 ? "Today!" : `in ${ev.daysUntil} days`})_`)
+      .map(ev => {
+        if (ev.daysUntil === 0 || ev.isToday) {
+          return `• *${ev.formattedDate || ev.date}:* ${ev.title} 🚨 *[TODAY - আজ]* 🔥`;
+        }
+        return `• *${ev.formattedDate || ev.date}:* ${ev.title} _(in ${ev.daysUntil} ${ev.daysUntil === 1 ? "day" : "days"})_`;
+      })
       .join("\n") + "\n";
   }
 
   let installmentSection = "";
   if (status.nextInstallment) {
-    installmentSection = `💳 *Tuition Installment Alert:*\n• ${status.nextInstallment.title}\n  📅 Deadline: *${status.nextInstallment.date}* _(${status.nextInstallment.daysUntil} days left)_\n  ⚠️ ${status.nextInstallment.note || "Tk. 500 fine after deadline"}\n`;
+    const isInstToday = status.nextInstallment.daysUntil === 0 || status.nextInstallment.isToday;
+    if (isInstToday) {
+      installmentSection = `💳 🚨 *TUITION FEE DEADLINE IS TODAY!* 🚨\n• *${status.nextInstallment.title}*\n  📅 Deadline: *${status.nextInstallment.formattedDate || status.nextInstallment.date}* 🚨 *[TODAY - আজই শেষ দিন!]* 🔥\n  ⚠️ 🚨 *জরুরি নোটিশ:* আজ রাত ১২টার পর ৫০০/- টাকা বিলম্ব ফি প্রযোজ্য হবে! আজকের মধ্যেই জমা দিন!\n`;
+    } else {
+      installmentSection = `💳 *Tuition Installment Alert:*\n• ${status.nextInstallment.title}\n  📅 Deadline: *${status.nextInstallment.formattedDate || status.nextInstallment.date}* _(${status.nextInstallment.daysUntil} days left)_\n  ⚠️ ${status.nextInstallment.note || "Tk. 500 fine after deadline"}\n`;
+    }
+  }
+
+  let todayEventsBanner = "";
+  if (status.todayEvents && status.todayEvents.length > 0) {
+    todayEventsBanner = "🚨 *TODAY'S SPECIAL EVENT / আজ অনুষ্ঠিত হচ্ছে:* 🚨\n" + status.todayEvents
+      .map(ev => `🔥 *[TODAY - আজ]* ${ev.title}${ev.type === "installment" ? " 💳 *(আজই শেষ দিন - বিলম্ব ফি ছাড়াই জমা দিন!)*" : ""}`)
+      .join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━\n";
   }
 
   return `${headerBanner}
 🏛️ *${status.university || "United International University (UIU)"}*
 🗓️ *${status.trimester || "Fall 2026 Trimester"}* | 📅 ${status.today}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-${greetingLine}
-⏳ *${active.statusMessage}*
+${greetingLine}${todayEventsBanner}⏳ *${active.statusMessage}*
 📅 *Exam Dates:* ${active.dates}
 
 📊 *${active.title} Progression:*
@@ -114,11 +130,18 @@ ${active.type === 'final' ? active.bar : 'Final progression activates after Mid-
   }
 
   // Default !countdown: ONLY SHOW CURRENT ACTIVE EXAM!
+  let todayAlert = "";
+  if (status.todayEvents && status.todayEvents.length > 0) {
+    todayAlert = "\n🚨 *TODAY'S EVENT / আজ:* " + status.todayEvents.map(e => `*[TODAY - আজ]* ${e.title}`).join(", ") + "\n";
+  } else if (status.nextInstallment && (status.nextInstallment.daysUntil === 0 || status.nextInstallment.isToday)) {
+    todayAlert = `\n💳 🚨 *[TODAY - আজ কিস্তি জমার শেষ দিন!]*\n• ${status.nextInstallment.title}\n`;
+  }
+
   return `⏱️ *UIU Exam Countdown & Progression*
 🏛️ *${status.university || "United International University (UIU)"}*
 🗓️ *${status.trimester || "Fall 2026 Trimester"}* | 📅 ${status.today}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-
+${todayAlert}
 🎯 *Target:* ${active.title}
 📢 *Status:* *${active.statusMessage}*
 📅 *Exam Dates:* ${active.dates}
@@ -173,9 +196,27 @@ function formatRoutineReply(calendarData) {
   const dates = (calendarData && calendarData.dates) || {};
   const events = (calendarData && calendarData.events) || [];
 
+  const now = new Date();
+  const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+
+  const getInstBadge = (dateStr) => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const evDate = new Date(y, m - 1, d, 0, 0, 0);
+    const diff = Math.round((evDate - todayZero) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return " 🚨 *[TODAY - আজই শেষ দিন!]* 🔥";
+    if (diff < 0) return " ✅ _(Passed)_";
+    return ` _(in ${diff} days)_`;
+  };
+
   const holidays = events.filter(e => e.type === "holiday").slice(0, 5);
   const holidayLines = holidays.length > 0 
-    ? holidays.map(h => `• *${h.date}:* ${h.title}`).join("\n")
+    ? holidays.map(h => {
+        const [y, m, d] = h.date.split("-").map(Number);
+        const evDate = new Date(y, m - 1, d, 0, 0, 0);
+        const diff = Math.round((evDate - todayZero) / (1000 * 60 * 60 * 24));
+        const badge = diff === 0 ? " 🚨 *[TODAY - আজ]* 🔥" : "";
+        return `• *${h.date}:* ${h.title}${badge}`;
+      }).join("\n")
     : "• No major upcoming holidays listed.";
 
   return `📋 *UIU Fall 2026 Academic Calendar*
@@ -189,9 +230,9 @@ function formatRoutineReply(calendarData) {
 • *Feb 9, 2027:* Spring 2027 Classes Begin
 
 💳 *Tuition Installment Deadlines:*
-• *Nov 22, 2026:* 1st Installment (40%)
-• *Dec 15, 2026:* 2nd Installment (70%)
-• *Jan 13, 2027:* 3rd Installment (100%)
+• *Nov 22, 2026:* 1st Installment (40%)${getInstBadge("2026-11-22")}
+• *Dec 15, 2026:* 2nd Installment (70%)${getInstBadge("2026-12-15")}
+• *Jan 13, 2027:* 3rd Installment (100%)${getInstBadge("2027-01-13")}
 _(Tk. 500 fine per installment if unpaid)_
 
 🏖️ *Holidays & Class Suspensions:*
@@ -201,21 +242,45 @@ ${holidayLines}
 💬 _Type *!countdown* for live remaining days!_`;
 }
 
-function formatInstallmentsReply() {
+function formatInstallmentsReply(status) {
+  const now = (status && status.targetDate) ? new Date(status.targetDate) : new Date();
+  const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+
+  const installments = [
+    { num: "1️⃣", name: "1st Installment (40% Tuition & Trimester Fee)", dateStr: "2026-11-22", dayName: "Sunday" },
+    { num: "2️⃣", name: "2nd Installment (70% Tuition & Trimester Fee)", dateStr: "2026-12-15", dayName: "Tuesday" },
+    { num: "3️⃣", name: "3rd Installment (100% Tuition & Trimester Fee)", dateStr: "2027-01-13", dayName: "Wednesday" },
+  ];
+
+  let hasToday = false;
+  const items = installments.map(inst => {
+    const [y, m, d] = inst.dateStr.split("-").map(Number);
+    const instDate = new Date(y, m - 1, d, 0, 0, 0);
+    const diff = Math.round((instDate - todayZero) / (1000 * 60 * 60 * 24));
+
+    let badge = "";
+    if (diff === 0) {
+      hasToday = true;
+      badge = " 🚨 *[TODAY - আজই শেষ দিন! দ্রুত জমা দিন!]* 🔥";
+    } else if (diff < 0) {
+      badge = " ✅ _(Passed / শেষ হয়েছে)_";
+    } else {
+      badge = ` ⏳ _(${diff} days remaining)_`;
+    }
+
+    return `${inst.num} *${inst.name}*
+   📅 Deadline: *${instDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}* (${inst.dayName})${badge}
+   ⚠️ Fine: Tk. 500/- after deadline`;
+  });
+
+  const urgentBanner = hasToday
+    ? `🚨🚨 *জরুরি সতর্কতা: আজ ফি কিস্তি জমার শেষ দিন [TODAY]!* 🚨🚨\n⚠️ *আজ রাত ১২টার পর ৫০০/- টাকা বিলম্ব ফি প্রযোজ্য হবে!*\n━━━━━━━━━━━━━━━━━━━━━━━━\n`
+    : "";
+
   return `💳 *UIU Fall 2026 Installment Schedule*
 🏛️ *United International University*
 ━━━━━━━━━━━━━━━━━━━━━━━━
-1️⃣ *1st Installment (40% Tuition & Trimester Fee)*
-   📅 Deadline: *Nov 22, 2026* (Sunday)
-   ⚠️ Fine: Tk. 500/- after deadline
-
-2️⃣ *2nd Installment (70% Tuition & Trimester Fee)*
-   📅 Deadline: *Dec 15, 2026* (Tuesday)
-   ⚠️ Fine: Tk. 500/- after deadline
-
-3️⃣ *3rd Installment (100% Tuition & Trimester Fee)*
-   📅 Deadline: *Jan 13, 2027* (Wednesday)
-   ⚠️ Fine: Tk. 500/- after deadline
+${urgentBanner}${items.join("\n\n")}
 
 📌 *Payment Guidelines:*
 • For 252+ batch: Tk. 20,000 paid at registration; 40% remainder due on 1st installment.

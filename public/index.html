@@ -725,6 +725,65 @@
     .tag-installment { background: rgba(249, 115, 22, 0.2); color: #fb923c; }
     .tag-holiday { background: rgba(16, 185, 129, 0.2); color: #34d399; }
     .tag-academic { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    .tag-today {
+      background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+      color: #fff !important;
+      font-weight: 700 !important;
+      animation: pulseToday 2s infinite ease-in-out;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .event-item.is-today {
+      background: rgba(239, 68, 68, 0.16) !important;
+      border: 1px solid rgba(239, 68, 68, 0.45) !important;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      box-shadow: 0 0 14px rgba(239, 68, 68, 0.25);
+    }
+
+    @keyframes pulseToday {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 8px rgba(239, 68, 68, 0.5); }
+      50% { transform: scale(1.05); box-shadow: 0 0 16px rgba(239, 68, 68, 0.85); }
+    }
+
+    .today-banner {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(185, 28, 28, 0.35));
+      border: 1px solid #ef4444;
+      border-radius: 12px;
+      padding: 0.85rem 1.25rem;
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.25);
+      animation: pulseToday 3s infinite ease-in-out;
+    }
+
+    .today-banner-content {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .today-banner-icon {
+      font-size: 1.8rem;
+    }
+
+    .today-banner-title {
+      font-weight: 800;
+      color: #fee2e2;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+    }
+
+    .today-banner-desc {
+      color: #fff;
+      font-size: 0.86rem;
+    }
 
     /* Logs */
     .log-box {
@@ -787,6 +846,9 @@
   </header>
 
   <main>
+    <!-- Live Today Events Alert (Auto-shown when an event/installment is TODAY) -->
+    <div id="todayAlertContainer"></div>
+
     <!-- Quick Metrics Ribbon -->
     <section class="metrics-ribbon">
       <div class="metric-chip">
@@ -1172,6 +1234,25 @@
     function updateUI(data) {
       const { bot, config, countdown, calendar, subscribers } = data;
 
+      // 0. Today Events Banner
+      const todayBox = document.getElementById('todayAlertContainer');
+      if (countdown.todayEvents && countdown.todayEvents.length > 0) {
+        todayBox.innerHTML = countdown.todayEvents.map(ev => `
+          <div class="today-banner">
+            <div class="today-banner-content">
+              <div class="today-banner-icon">🚨</div>
+              <div>
+                <div class="today-banner-title">🔥 TODAY'S EVENT / আজ অনুষ্ঠিত হচ্ছে:</div>
+                <div class="today-banner-desc"><b>${ev.title}</b> ${ev.type === 'installment' ? '— 💳 <b>আজই ফি জমার শেষ দিন! (রাত ১২টার পর ৫০০/- টাকা জরিমানা)</b>' : ''}</div>
+              </div>
+            </div>
+            <span class="event-tag tag-today">🚨 TODAY / আজই</span>
+          </div>
+        `).join('');
+      } else {
+        todayBox.innerHTML = '';
+      }
+
       // 1. Quick Metrics
       document.getElementById('todayDate').textContent = countdown.today;
       document.getElementById('midDaysQuick').textContent = countdown.midProgress.isPassed 
@@ -1354,16 +1435,21 @@
       // 8. Academic Events List
       if (calendar && calendar.events && calendar.events.length) {
         const eventsList = document.getElementById('eventsList');
-        eventsList.innerHTML = calendar.events.slice(0, 12).map(ev => {
+        const nowObj = new Date();
+        const todayStr = `${nowObj.getFullYear()}-${String(nowObj.getMonth() + 1).padStart(2, '0')}-${String(nowObj.getDate()).padStart(2, '0')}`;
+
+        eventsList.innerHTML = calendar.events.slice(0, 15).map(ev => {
           let tagClass = 'tag-academic';
           if (ev.type === 'exam') tagClass = 'tag-exam';
           else if (ev.type === 'installment') tagClass = 'tag-installment';
           else if (ev.type === 'holiday') tagClass = 'tag-holiday';
 
+          const isEventToday = ev.date === todayStr;
+
           return `
-            <div class="event-item">
+            <div class="event-item ${isEventToday ? 'is-today' : ''}">
               <span class="event-date">${ev.date}</span>
-              <span class="event-name">${ev.title}</span>
+              <span class="event-name">${ev.title} ${isEventToday ? '<span class="event-tag tag-today">🚨 TODAY / আজই</span>' : ''}</span>
               <span class="event-tag ${tagClass}">${ev.type}</span>
             </div>
           `;
