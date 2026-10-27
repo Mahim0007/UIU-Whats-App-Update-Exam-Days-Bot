@@ -670,8 +670,29 @@ async function startWhatsAppBot() {
   return sock;
 }
 
+async function unlinkWhatsApp() {
+  if (sock) {
+    try {
+      sock.ev.removeAllListeners();
+      sock.end(undefined);
+    } catch (e) {}
+    sock = null;
+  }
+  botState.status = "disconnected";
+  botState.userInfo = null;
+  botState.qrDataUrl = null;
+  const authDir = path.join(__dirname, "../auth_info");
+  if (fs.existsSync(authDir)) {
+    try { fs.rmSync(authDir, { recursive: true, force: true }); } catch (e) {}
+  }
+  await clearAuthFromDb();
+  addLog("ℹ️ Personal WhatsApp account unlinked successfully.");
+  return true;
+}
+
 module.exports = {
   startWhatsAppBot,
+  unlinkWhatsApp,
   broadcastToSubscribers,
   broadcastScheduleUpdate,
   sendDailyBroadcast,

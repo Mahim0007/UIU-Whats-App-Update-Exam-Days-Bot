@@ -4,6 +4,7 @@ const fs = require("fs");
 const {
   botState,
   startWhatsAppBot,
+  unlinkWhatsApp,
   broadcastToSubscribers,
   broadcastScheduleUpdate,
   sendDailyBroadcast,
@@ -18,7 +19,13 @@ const {
   loadCalendarData,
   saveCalendarData
 } = require("./calendar");
-const { formatCustomAnnouncement } = require("./messages");
+const {
+  formatCustomAnnouncement,
+  formatWelcomeReply,
+  formatCountdownReply,
+  formatRoutineReply,
+  formatInstallmentsReply
+} = require("./messages");
 
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -189,6 +196,45 @@ function startWebServer(port = 3000) {
       res.json({ success: true, message: "Reconnection process initiated" });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // Web Interactive Chat Endpoint: Instant interactive message box right on website!
+  app.post("/api/chat", (req, res) => {
+    const rawMessage = (req.body.message || "").trim();
+    const status = getCountdownStatus();
+    const lower = rawMessage.toLowerCase();
+
+    let reply = "";
+    if (lower.includes("routine") || lower.includes("calendar")) {
+      const calData = loadCalendarData();
+      reply = formatRoutineReply(calData);
+    } else if (lower.includes("installment") || lower.includes("fee") || lower.includes("kisti")) {
+      reply = formatInstallmentsReply(status);
+    } else if (lower.includes("mid")) {
+      reply = formatCountdownReply(status, "mid");
+    } else if (lower.includes("final")) {
+      reply = formatCountdownReply(status, "final");
+    } else {
+      // Default: clean all-in-one status on "hi" or anything else
+      reply = formatWelcomeReply(status);
+    }
+
+    res.json({
+      success: true,
+      sender: "UIU Bot",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      reply
+    });
+  });
+
+  // Unlink WhatsApp account endpoint
+  app.post("/api/unlink-whatsapp", async (req, res) => {
+    try {
+      await unlinkWhatsApp();
+      res.json({ success: true, message: "WhatsApp unlinked successfully" });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
     }
   });
 
