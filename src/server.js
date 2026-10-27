@@ -23,6 +23,7 @@ const { formatCustomAnnouncement } = require("./messages");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const { validateNoticeContent, sanitizeInput } = require("./security");
+const QRCode = require("qrcode");
 
 function startWebServer(port = 3000) {
   const app = express();
@@ -65,7 +66,34 @@ function startWebServer(port = 3000) {
     res.send("pong");
   });
 
-  // Dedicated Full-Screen QR Code page for effortless scanning
+  // 1-Click WhatsApp Chat Redirect (Opens bot chat directly with pre-filled 'Hi')
+  app.get("/chat", (req, res) => {
+    const botPhone = botState.userInfo?.phone || process.env.BOT_PHONE || "8801837228494";
+    res.redirect(`https://wa.me/${botPhone}?text=Hi`);
+  });
+
+  // Direct Chat QR Code Image Endpoint (Scannable by phone camera to open chat directly)
+  app.get("/qr/chat", async (req, res) => {
+    const botPhone = botState.userInfo?.phone || process.env.BOT_PHONE || "8801837228494";
+    const link = `https://wa.me/${botPhone}?text=Hi`;
+    try {
+      const buffer = await QRCode.toBuffer(link, {
+        width: 380,
+        margin: 2,
+        color: {
+          dark: "#0b141a",
+          light: "#ffffff"
+        }
+      });
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=60");
+      res.send(buffer);
+    } catch (err) {
+      res.status(500).send("Error generating QR");
+    }
+  });
+
+  // Dedicated Full-Screen QR Code page for bot WhatsApp login / device linking
   app.get("/qr", (req, res) => {
     if (botState.status === "connected") {
       return res.send(`
@@ -124,6 +152,8 @@ function startWebServer(port = 3000) {
         </body>
         </html>
       `);
+    }
+
     // If bot is disconnected and no QR is generated yet, proactively trigger startWhatsAppBot
     if (botState.status === "disconnected") {
       try {
@@ -167,8 +197,8 @@ function startWebServer(port = 3000) {
     const countdown = getCountdownStatus();
     const calendar = loadCalendarData();
     const subscribers = loadSubscribers();
-    const botPhone = botState.userInfo?.phone || "";
-    const waLink = botPhone ? `https://wa.me/${botPhone}?text=Hi` : null;
+    const botPhone = botState.userInfo?.phone || process.env.BOT_PHONE || "8801837228494";
+    const waLink = `https://wa.me/${botPhone}?text=Hi`;
 
     res.json({
       bot: {
