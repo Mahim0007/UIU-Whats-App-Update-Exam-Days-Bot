@@ -19,7 +19,6 @@ const {
   formatCustomAnnouncement,
   formatRoutineReply,
   formatInstallmentsReply,
-  formatHelpReply,
   formatWelcomeReply
 } = require("./messages");
 
@@ -605,104 +604,22 @@ async function startWhatsAppBot() {
 
       addLog(`📩 Message from ${remoteJid}: "${text}"`);
 
-      // 1. DUAL COUNTDOWN (Default)
+      // 1. OPTIONAL: UNSUBSCRIBE / STOP
       if (
-        lower === "!countdown" ||
-        lower === "countdown" ||
-        lower === "exam" ||
-        lower === "!exam" ||
-        lower === "exams"
+        lower === "!unsubscribe" ||
+        lower === "unsubscribe" ||
+        lower === "stop" ||
+        lower === "!stop" ||
+        lower === "unsub"
       ) {
-        const status = getCountdownStatus();
-        const reply = formatCountdownReply(status, "all");
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Replied with Dual Countdown to ${remoteJid}`);
-      }
-
-      // 2. MID-TERM PROGRESSION & COUNTDOWN
-      else if (
-        lower === "!mid" ||
-        lower === "mid" ||
-        lower === "midterm" ||
-        lower === "!midterm" ||
-        lower === "mid-term" ||
-        lower === "!mid-term"
-      ) {
-        const status = getCountdownStatus();
-        const reply = formatCountdownReply(status, "mid");
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Replied with Mid-Term Progression to ${remoteJid}`);
-      }
-
-      // 3. FINAL EXAM PROGRESSION & COUNTDOWN
-      else if (
-        lower === "!final" ||
-        lower === "final" ||
-        lower === "finals" ||
-        lower === "!finals" ||
-        lower === "final-term"
-      ) {
-        const status = getCountdownStatus();
-        const reply = formatCountdownReply(status, "final");
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Replied with Final Exam Progression to ${remoteJid}`);
-      }
-
-      // 4. ROUTINE & ACADEMIC CALENDAR
-      else if (
-        lower === "!routine" ||
-        lower === "routine" ||
-        lower === "calendar" ||
-        lower === "!calendar"
-      ) {
-        const calendarData = loadCalendarData();
-        const reply = formatRoutineReply(calendarData);
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Replied with Routine to ${remoteJid}`);
-      }
-
-      // 5. TUITION INSTALLMENTS
-      else if (
-        lower === "!installments" ||
-        lower === "installment" ||
-        lower === "!installment" ||
-        lower === "fee" ||
-        lower === "!fee" ||
-        lower === "fees"
-      ) {
-        const status = getCountdownStatus();
-        const reply = formatInstallmentsReply(status);
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Replied with Installments to ${remoteJid}`);
-      }
-
-      // 6. MOTIVATION QUOTE
-      else if (lower === "!quote" || lower === "quote" || lower === "motivation") {
-        const status = getCountdownStatus();
-        const reply = `💡 *UIU Study Motivation:*\n\n"${status.quote}"\n\n_Keep pushing forward! Success is earned daily!_ 🌟`;
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Replied with Quote to ${remoteJid}`);
-      }
-
-      // 7. SUBSCRIBE TO ALERTS
-      else if (lower === "!subscribe" || lower === "subscribe") {
-        addSubscriber(remoteJid, senderName, senderPhone);
-        updateUserStatus(remoteJid, "subscribed");
-        const reply = `✅ *Subscribed Successfully!*\n\nYou will now receive automatic UIU exam countdown alerts every morning at 9:00 AM and evening at 7:00 PM.\n\n💬 _Type *!countdown* anytime to check current remaining days!_`;
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`✅ Subscriber confirmed: ${remoteJid}`);
-      }
-
-      // 8. UNSUBSCRIBE
-      else if (lower === "!unsubscribe" || lower === "unsubscribe") {
         removeSubscriber(remoteJid);
         updateUserStatus(remoteJid, "unsubscribed");
-        const reply = `🔕 *Unsubscribed!*\n\nYou will no longer receive automated daily countdown alerts. You can resubscribe anytime with *!subscribe*.`;
+        const reply = `🔕 *Unsubscribed / আনসাবস্ক্রাইব করা হয়েছে!*\n\nআপনাকে দৈনিক স্বয়ংক্রিয় অ্যালার্ট থেকে বাদ দেওয়া হয়েছে।\nপুনরায় চালু করতে চাইলে যেকোনো সময় শুধু 'hi' লিখে মেসেজ পাঠালেই আবার সক্রিয় হয়ে যাবে।`;
         await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
         addLog(`🔕 Unsubscribed: ${remoteJid}`);
       }
 
-      // 9. TEST SAMPLE BROADCAST
+      // 2. ADMIN BROADCAST TEST (Optional)
       else if (lower === "!test" || lower === "test") {
         const status = getCountdownStatus();
         const reply = formatDailyBroadcast(status);
@@ -710,46 +627,15 @@ async function startWhatsAppBot() {
         addLog(`💬 Sent sample broadcast test to ${remoteJid}`);
       }
 
-      // 10. GREETING & LIFETIME SUBSCRIPTION ON "HI" / "START"
-      else if (
-        lower === "hi" ||
-        lower === "hello" ||
-        lower === "start" ||
-        lower === "!start" ||
-        lower === "hey" ||
-        lower === "salam" ||
-        lower === "assalamu alaikum" ||
-        lower === "bot"
-      ) {
+      // 3. ZERO-COMMAND WORKFLOW: ANY MESSAGE (HI / HELLO / TEXT)
+      // Automatically subscribes the user permanently & sends full all-in-one daily status!
+      else {
         addSubscriber(remoteJid, senderName, senderPhone);
         updateUserStatus(remoteJid, "subscribed");
         const status = getCountdownStatus();
         const reply = formatWelcomeReply(status);
         await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`👋 User started bot with "${text}" & permanently subscribed: ${remoteJid}`);
-      }
-
-      // 11. HELP / MENU
-      else if (
-        lower === "!help" ||
-        lower === "help" ||
-        lower === "menu" ||
-        lower === "!menu" ||
-        lower === "commands"
-      ) {
-        const reply = formatHelpReply();
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Replied with Help Menu to ${remoteJid}`);
-      }
-
-      // 12. CASUAL TEXT FALLBACK (FOR DIRECT INDIVIDUAL MESSAGES)
-      else if (!isGroup) {
-        addSubscriber(remoteJid, senderName, senderPhone);
-        updateUserStatus(remoteJid, "subscribed");
-        const status = getCountdownStatus();
-        const reply = formatWelcomeReply(status);
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Handled private message from ${remoteJid} with Welcome & Countdown`);
+        addLog(`👋 User message received ("${text}"). Auto-subscribed & sent All-In-One status to ${remoteJid}`);
       }
     }
   });

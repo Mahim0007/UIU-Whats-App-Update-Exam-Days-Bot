@@ -55,21 +55,44 @@ function formatDailyBroadcast(status, slot = "auto") {
       .join("\n") + "\n";
   }
 
-  let installmentSection = "";
-  if (status.nextInstallment) {
-    const isInstToday = status.nextInstallment.daysUntil === 0 || status.nextInstallment.isToday;
-    if (isInstToday) {
-      installmentSection = `💳 🚨 *TUITION FEE DEADLINE IS TODAY!* 🚨\n• *${status.nextInstallment.title}*\n  📅 Deadline: *${status.nextInstallment.formattedDate || status.nextInstallment.date}* 🚨 *[TODAY - আজই শেষ দিন!]* 🔥\n  ⚠️ 🚨 *জরুরি নোটিশ:* আজ রাত ১২টার পর ৫০০/- টাকা বিলম্ব ফি প্রযোজ্য হবে! আজকের মধ্যেই জমা দিন!\n`;
+  const now = (status && status.targetDate) ? new Date(status.targetDate) : new Date();
+  const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+
+  const installments = [
+    { num: "1️⃣", name: "1st Installment (40%)", dateStr: "2026-11-22" },
+    { num: "2️⃣", name: "2nd Installment (70%)", dateStr: "2026-12-15" },
+    { num: "3️⃣", name: "3rd Installment (100%)", dateStr: "2027-01-13" },
+  ];
+
+  let hasInstToday = false;
+  const instLines = installments.map(inst => {
+    const [y, m, d] = inst.dateStr.split("-").map(Number);
+    const instDate = new Date(y, m - 1, d, 0, 0, 0);
+    const diff = Math.round((instDate - todayZero) / (1000 * 60 * 60 * 24));
+    let badge = "";
+    if (diff === 0) {
+      hasInstToday = true;
+      badge = " 🚨 *[TODAY - আজই শেষ দিন! দ্রুত জমা দিন!]* 🔥";
+    } else if (diff < 0) {
+      badge = " ✅ _(Passed)_";
     } else {
-      installmentSection = `💳 *Tuition Installment Alert:*\n• ${status.nextInstallment.title}\n  📅 Deadline: *${status.nextInstallment.formattedDate || status.nextInstallment.date}* _(${status.nextInstallment.daysUntil} days left)_\n  ⚠️ ${status.nextInstallment.note || "Tk. 500 fine after deadline"}\n`;
+      badge = ` ⏳ _(${diff} days left)_`;
     }
-  }
+    return `• ${inst.num} *${inst.name}:* ${inst.dateStr}${badge}`;
+  }).join("\n");
+
+  const installmentSection = `💳 *Tuition Fee Installment Schedule:*\n${instLines}\n⚠️ _(Tk. 500 late fine per installment after deadline)_\n`;
 
   let todayEventsBanner = "";
+  const allTodayAlerts = [];
+  if (hasInstToday) {
+    allTodayAlerts.push("💳 🚨 *[TODAY - আজ টিউশন ফি কিস্তি জমার শেষ দিন! আজ রাত ১২টার পর ৫০০/- টাকা বিলম্ব ফি প্রযোজ্য!]*");
+  }
   if (status.todayEvents && status.todayEvents.length > 0) {
-    todayEventsBanner = "🚨 *TODAY'S SPECIAL EVENT / আজ অনুষ্ঠিত হচ্ছে:* 🚨\n" + status.todayEvents
-      .map(ev => `🔥 *[TODAY - আজ]* ${ev.title}${ev.type === "installment" ? " 💳 *(আজই শেষ দিন - বিলম্ব ফি ছাড়াই জমা দিন!)*" : ""}`)
-      .join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━\n";
+    status.todayEvents.forEach(ev => allTodayAlerts.push(`🔥 *[TODAY - আজ]* ${ev.title}`));
+  }
+  if (allTodayAlerts.length > 0) {
+    todayEventsBanner = "🚨 *TODAY'S SPECIAL EVENT / আজ অনুষ্ঠিত হচ্ছে:* 🚨\n" + allTodayAlerts.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━\n";
   }
 
   return `${headerBanner}
@@ -88,7 +111,7 @@ ${eventsSection ? `${eventsSection}\n` : ""}${installmentSection ? `${installmen
 "${status.quote}"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-💬 _Reply *!countdown*, *!routine*, or *!help* anytime!_`;
+_UIU Exam Countdown Bot • 24/7 Automated Daily Alerts (9 AM & 7 PM)_ 🎓`;
 }
 
 function formatCountdownReply(status, specificTarget = "current") {
@@ -108,7 +131,7 @@ ${active.type === 'mid' ? active.bar : '[██████████] 100%'}
 • Remaining: *${active.type === 'mid' ? `${active.daysRemaining} days` : '0 days (Completed)'}*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-💬 _Type *!routine* for calendar or *!help* for commands!_`;
+_UIU Exam Countdown Bot • 24/7 Automated Daily Alerts (9 AM & 7 PM)_ 🎓`;
   }
 
   // If user specifically asked for final
@@ -126,7 +149,7 @@ ${active.type === 'final' ? active.bar : 'Final progression activates after Mid-
 • Exam Period: *Jan 25 – Feb 1, 2027*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-💬 _Type *!routine* for calendar or *!help* for commands!_`;
+_UIU Exam Countdown Bot • 24/7 Automated Daily Alerts (9 AM & 7 PM)_ 🎓`;
   }
 
   // Default !countdown: ONLY SHOW CURRENT ACTIVE EXAM!
@@ -155,7 +178,7 @@ ${active.type === "mid"
   ? `💡 _Final Exam countdown will activate after Mid-Term is finished!_` 
   : `💡 _Finish the trimester strong! Best of luck!_`}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-💬 _Commands: *!routine* | *!installments* | *!help*_`;
+_UIU Exam Countdown Bot • 24/7 Automated Daily Alerts (9 AM & 7 PM)_ 🎓`;
 }
 
 function formatScheduleUpdateNotice(status, changeSummary = "") {
@@ -177,8 +200,8 @@ ${active.bar}
 • Remaining: *${active.daysRemaining} days*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-✅ _All WhatsApp commands (!countdown, !routine) are auto-synced!_
-💬 _Reply *!countdown* anytime to check updated days!_`;
+✅ _Academic calendar auto-synced with Fall 2026 schedule._
+_UIU Exam Countdown Bot • 24/7 Automated Daily Alerts (9 AM & 7 PM)_ 🎓`;
 }
 
 function formatCustomAnnouncement(title, message) {
@@ -239,7 +262,7 @@ _(Tk. 500 fine per installment if unpaid)_
 ${holidayLines}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-💬 _Type *!countdown* for live remaining days!_`;
+_UIU Exam Countdown Bot • 24/7 Automated Daily Alerts (9 AM & 7 PM)_ 🎓`;
 }
 
 function formatInstallmentsReply(status) {
@@ -286,56 +309,69 @@ ${urgentBanner}${items.join("\n\n")}
 • For 252+ batch: Tk. 20,000 paid at registration; 40% remainder due on 1st installment.
 • Transportation & Gym fees payable in installments (40%, 30%, 30%).
 ━━━━━━━━━━━━━━━━━━━━━━━━
-💬 _Type *!countdown* for exam status!_`;
-}
-
-function formatHelpReply() {
-  return `🤖 *UIU Exam Countdown Bot - Commands*
-━━━━━━━━━━━━━━━━━━━━━━━━
-Here are the commands you can send me:
-
-⏱️ *!countdown*
-↳ Get live progression & remaining days for the current exam milestone!
-
-📘 *!mid*
-↳ View Mid-Term Exam details and dates.
-
-🏆 *!final*
-↳ View Final Exam details and dates.
-
-📋 *!routine*
-↳ View the full Fall 2026 Academic Calendar.
-
-💳 *!installments*
-↳ Check tuition fee installment dates and fines.
-
-💡 *!quote*
-↳ Get an instant motivational study quote!
-
-🔔 *!subscribe*
-↳ Subscribe to automatic morning (9 AM) and evening (7 PM) alerts!
-
-🔕 *!unsubscribe*
-↳ Unsubscribe from automated daily alerts.
-
-ℹ️ *!help*
-↳ Show this help menu.
-━━━━━━━━━━━━━━━━━━━━━━━━
-_Made for UIU Students • Auto-notifies at 9:00 AM & 7:00 PM_ 🎓`;
+_UIU Exam Countdown Bot • 24/7 Automated Daily Alerts (9 AM & 7 PM)_ 🎓`;
 }
 
 function formatWelcomeReply(status) {
   const active = status.activeExam;
-  return `🎓 *Welcome to UIU Exam Countdown Bot!* 🤖
+  const now = (status && status.targetDate) ? new Date(status.targetDate) : new Date();
+  const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+
+  const installments = [
+    { num: "1️⃣", name: "1st Installment (40%)", dateStr: "2026-11-22" },
+    { num: "2️⃣", name: "2nd Installment (70%)", dateStr: "2026-12-15" },
+    { num: "3️⃣", name: "3rd Installment (100%)", dateStr: "2027-01-13" },
+  ];
+
+  let hasInstToday = false;
+  const instLines = installments.map(inst => {
+    const [y, m, d] = inst.dateStr.split("-").map(Number);
+    const instDate = new Date(y, m - 1, d, 0, 0, 0);
+    const diff = Math.round((instDate - todayZero) / (1000 * 60 * 60 * 24));
+    let badge = "";
+    if (diff === 0) {
+      hasInstToday = true;
+      badge = " 🚨 *[TODAY - আজই শেষ দিন! দ্রুত জমা দিন!]* 🔥";
+    } else if (diff < 0) {
+      badge = " ✅ _(Passed / শেষ হয়েছে)_";
+    } else {
+      badge = ` ⏳ _(${diff} days remaining)_`;
+    }
+    return `• ${inst.num} *${inst.name}:* ${inst.dateStr}${badge}`;
+  }).join("\n");
+
+  let eventsSection = "";
+  if (status.upcomingEvents && status.upcomingEvents.length > 0) {
+    eventsSection = "📌 *Upcoming Academic Events:*\n" + status.upcomingEvents
+      .map(ev => {
+        if (ev.daysUntil === 0 || ev.isToday) {
+          return `• *${ev.formattedDate || ev.date}:* ${ev.title} 🚨 *[TODAY - আজ]* 🔥`;
+        }
+        return `• *${ev.formattedDate || ev.date}:* ${ev.title} _(in ${ev.daysUntil} ${ev.daysUntil === 1 ? "day" : "days"})_`;
+      })
+      .join("\n") + "\n";
+  }
+
+  let todayAlertsBanner = "";
+  const allTodayAlerts = [];
+  if (hasInstToday) {
+    allTodayAlerts.push("💳 🚨 *[TODAY] আজ টিউশন ফি কিস্তি জমার শেষ দিন! আজ রাত ১২টার পর ৫০০/- টাকা বিলম্ব ফি প্রযোজ্য!*");
+  }
+  if (status.todayEvents && status.todayEvents.length > 0) {
+    status.todayEvents.forEach(ev => allTodayAlerts.push(`🔥 *[TODAY - আজ]* ${ev.title}`));
+  }
+  if (allTodayAlerts.length > 0) {
+    todayAlertsBanner = "🚨 *TODAY'S SPECIAL ALERTS / আজকের জরুরি নোটিশ:* 🚨\n" + allTodayAlerts.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━\n";
+  }
+
+  return `🎓 *UIU Fall 2026 Exam Countdown* 🤖
 🏛️ *${status.university || "United International University (UIU)"}*
 🗓️ *${status.trimester || "Fall 2026 Trimester"}* | 📅 ${status.today}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-🎉 *আপনার সাবস্ক্রিপশন সফলভাবে সক্রিয় হয়েছে!*
-প্রতিদিন *সকাল ৯:০০ টা* এবং *রাত ৭:০০ টায়* আপনার এই হোয়াটসঅ্যাপে স্বয়ংক্রিয়ভাবে পরীক্ষার লাইভ কাউন্টডাউন ও রিভিশন নোটিফিকেশন পৌঁছে যাবে।
+🎉 *আপনার সাবস্ক্রিপশন সক্রিয় হয়েছে!*
+প্রতিদিন *সকাল ৯:০০ টা* এবং *রাত ৭:০০ টায়* আপনার এই হোয়াটসঅ্যাপে স্বয়ংক্রিয়ভাবে পরীক্ষার লাইভ কাউন্টডাউন, কিস্তির শিডিউল ও একাডেমিক নোটিশ পৌঁছে যাবে।
 
-⚡ _(আপনাকে আর কখনোই 'hi' লিখে বট চালু করতে হবে না। ব্যাকএন্ড আপডেট হলেও এই সাবস্ক্রিপশন সারাজীবন সক্রিয় থাকবে!)_
-
-⏳ *Current Target:* *${active.title}*
+${todayAlertsBanner}⏳ *Current Target:* *${active.title}*
 📢 *Status:* *${active.statusMessage}*
 📅 *Exam Dates:* ${active.dates}
 
@@ -344,16 +380,15 @@ ${active.bar}
 • ⏳ *${active.daysRemaining} days remaining* (${active.elapsedDays}/${active.totalDays} days passed)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📌 *যেকোনো সময় ব্যবহার করার কমান্ডসমূহ:*
-• *!countdown* - বর্তমান পরীক্ষার লাইভ দিন ও প্রগ্রেস
-• *!mid* - মিড-টার্ম পরীক্ষার তথ্য
-• *!final* - ফাইনাল পরীক্ষার তথ্য
-• *!routine* - ফুল অ্যাকাডেমিক ক্যালেন্ডার
-• *!installments* - ফি কিস্তির তারিখ ও জরিমানা
-• *!quote* - স্টাডি মোটিভেশন কোট
-• *!unsubscribe* - নোটিফিকেশন বন্ধ করতে
+💳 *Tuition Fee Installment Schedule:*
+${instLines}
+⚠️ _(বিলম্ব ফি: ডেডলাইনের পর ৫০০/- টাকা প্রযোজ্য)_
+
+${eventsSection}💡 *Daily Motivation:*
+"${status.quote}"
+
 ━━━━━━━━━━━━━━━━━━━━━━━━
-_Made for UIU Students • 24/7 Automated Service_ 🎓`;
+_UIU Exam Countdown Bot • 24/7 Automated Daily Alerts (9 AM & 7 PM)_ 🎓`;
 }
 
 module.exports = {
@@ -363,7 +398,6 @@ module.exports = {
   formatCustomAnnouncement,
   formatRoutineReply,
   formatInstallmentsReply,
-  formatHelpReply,
   formatWelcomeReply
 };
 
