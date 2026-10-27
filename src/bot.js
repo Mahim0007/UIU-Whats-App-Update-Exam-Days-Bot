@@ -43,6 +43,24 @@ const {
 
 const SUBSCRIBERS_PATH = path.join(__dirname, "../data/subscribers.json");
 const CONFIG_PATH = path.join(__dirname, "../config.json");
+const BROADCAST_STATE_PATH = path.join(__dirname, "../data/broadcast_state.json");
+
+function loadBroadcastState() {
+  try {
+    if (fs.existsSync(BROADCAST_STATE_PATH)) {
+      return JSON.parse(fs.readFileSync(BROADCAST_STATE_PATH, "utf-8"));
+    }
+  } catch (e) {}
+  return { lastMorningDate: null, lastEveningDate: null };
+}
+
+function saveBroadcastState(state) {
+  try {
+    const dir = path.dirname(BROADCAST_STATE_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BROADCAST_STATE_PATH, JSON.stringify(state, null, 2), "utf-8");
+  } catch (e) {}
+}
 
 // Shared bot state for Web Dashboard & Terminal
 const botState = {
@@ -229,8 +247,19 @@ async function broadcastToSubscribers(messageText, options = {}) {
 
   addLog(`📢 Starting broadcast to ${subscribers.length} WhatsApp subscriber(s)...`);
 
+  // Resilient Connection Wait: If socket is momentarily reconnecting during an update, wait up to 10s
+  if (!sock || botState.status !== "connected") {
+    addLog("⏳ WhatsApp socket temporarily reconnecting... waiting up to 10 seconds before broadcasting...");
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      if (sock && botState.status === "connected") break;
+    }
+  }
 
-
+  if (!sock || botState.status !== "connected") {
+    addLog("❌ Broadcast deferred: WhatsApp bot is currently reconnecting.");
+    return { success: false, error: "Bot is not connected to WhatsApp" };
+  }
 
   let deliveredCount = 0;
   let failedCount = 0;
@@ -246,14 +275,27 @@ async function broadcastToSubscribers(messageText, options = {}) {
       targetJid = selfJid;
     }
 
-    try {
-      await sock.sendMessage(targetJid, { text: messageText });
-      deliveredCount++;
+    let sent = false;
+    // Resilient per-subscriber retry (2 attempts) so network blips during updates don't drop messages
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await sock.sendMessage(targetJid, { text: messageText });
+        deliveredCount++;
+        sent = true;
+        break;
+      } catch (err) {
+        if (attempt === 2) {
+          addLog(`❌ Failed sending to ${sub.name || sub.jid}: ${err.message}`);
+          failedCount++;
+        } else {
+          await new Promise(res => setTimeout(res, 400));
+        }
+      }
+    }
+
+    if (sent) {
       // Safe delay between deliveries (300ms) to avoid spam triggers
       await new Promise(res => setTimeout(res, 300));
-    } catch (err) {
-      addLog(`❌ Failed sending to ${sub.name || sub.jid}: ${err.message}`);
-      failedCount++;
     }
   }
 
@@ -291,11 +333,48 @@ async function broadcastScheduleUpdate(changeSummary = "") {
   return await broadcastToSubscribers(updateMessage);
 }
 
-// Daily scheduled broadcast (morning or evening)
+// Daily scheduled broadcast (morning or evening) with persistence tracking
 async function sendDailyBroadcast(slot = "auto") {
+  const currentHour = new Date().getHours();
+  const effectiveSlot = slot !== "auto" ? slot : currentHour < 14 ? "morning" : "evening";
+
   const status = getCountdownStatus();
-  const messageText = formatDailyBroadcast(status, slot);
-  return await broadcastToSubscribers(messageText);
+  const messageText = formatDailyBroadcast(status, effectiveSlot);
+  const result = await broadcastToSubscribers(messageText);
+
+  if (result.success) {
+    const state = loadBroadcastState();
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (effectiveSlot === "morning") state.lastMorningDate = todayStr;
+    if (effectiveSlot === "evening") state.lastEveningDate = todayStr;
+    saveBroadcastState(state);
+  }
+
+  return result;
+}
+
+// Missed broadcast catch-up engine: Ensures users NEVER miss a daily alert even if bot was restarting/updating
+async function checkAndSendMissedBroadcast() {
+  try {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const hour = now.getHours();
+    const state = loadBroadcastState();
+
+    // Morning window: between 9:00 AM and 1:00 PM (hour 9, 10, 11, 12)
+    if (hour >= 9 && hour < 13 && state.lastMorningDate !== todayStr) {
+      addLog("⚡ [Catch-Up] Morning 9:00 AM broadcast was missed during restart/update. Automatically delivering to all subscribers now!");
+      await sendDailyBroadcast("morning");
+    }
+    // Evening window: between 7:00 PM and 11:00 PM (hour 19, 20, 21, 22)
+    else if (hour >= 19 && hour < 23 && state.lastEveningDate !== todayStr) {
+      addLog("⚡ [Catch-Up] Evening 7:00 PM broadcast was missed during restart/update. Automatically delivering to all subscribers now!");
+      await sendDailyBroadcast("evening");
+    }
+  } catch (err) {
+    addLog(`⚠️ Catch-up broadcast check warning: ${err.message}`);
+  }
 }
 
 function setupDailyScheduler() {
@@ -450,6 +529,9 @@ async function startWhatsAppBot() {
 
       // Setup daily morning and evening cron
       setupDailyScheduler();
+
+      // Check and catch up any missed broadcast if bot was restarted during schedule window
+      checkAndSendMissedBroadcast();
     }
 
     if (connection === "close") {

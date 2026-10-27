@@ -13,6 +13,7 @@ qr.png
 # Local SQLite databases
 *.db
 data/*.db
+data/broadcast_state.json
 
 # Logs
 npm-debug.log*

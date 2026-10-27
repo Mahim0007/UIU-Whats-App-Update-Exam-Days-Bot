@@ -39,8 +39,23 @@ startWhatsAppBot().catch((err) => {
   console.error("Fatal error starting WhatsApp Bot:", err);
 });
 
+// Global Crash Shield: Protects the process from dying unexpectedly during code updates
+process.on("uncaughtException", (err) => {
+  console.error("🛡️ [Crash Guard] Uncaught Exception trapped (Process protected):", err.message);
+  if (err.stack) console.error(err.stack);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("🛡️ [Crash Guard] Unhandled Promise Rejection trapped:", reason);
+});
+
 // Handle termination signals
 process.on("SIGINT", () => {
   console.log("\n🛑 Stopping UIU Exam Countdown Bot. Goodbye!");
+  process.exit(0);
+});
+
+process.on("SIGTERM", () => {
+  console.log("\n🛑 Terminating UIU Exam Countdown Bot safely.");
   process.exit(0);
 });
