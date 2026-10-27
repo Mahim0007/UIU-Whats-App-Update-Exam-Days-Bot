@@ -33,6 +33,13 @@ const {
   getRecentLogs
 } = require("./db");
 
+const {
+  checkUserRateLimit,
+  sanitizeInput,
+  validateNoticeContent
+} = require("./security");
+
+
 
 const SUBSCRIBERS_PATH = path.join(__dirname, "../data/subscribers.json");
 const CONFIG_PATH = path.join(__dirname, "../config.json");
@@ -206,6 +213,13 @@ async function broadcastToSubscribers(messageText, options = {}) {
     return { success: false, error: "Not connected to WhatsApp" };
   }
 
+  // Strict Security Safety Check: Prevent broadcasting unethical/malicious content
+  const safetyCheck = validateNoticeContent("Broadcast", messageText);
+  if (!safetyCheck.safe) {
+    addLog(`🚨 Blocked unsafe broadcast attempt: ${safetyCheck.reason}`);
+    return { success: false, error: safetyCheck.reason };
+  }
+
   // Always sync fresh subscribers from PostgreSQL database
   const subscribers = await syncSubscribersFromDatabase();
   if (subscribers.length === 0) {
@@ -214,6 +228,8 @@ async function broadcastToSubscribers(messageText, options = {}) {
   }
 
   addLog(`📢 Starting broadcast to ${subscribers.length} WhatsApp subscriber(s)...`);
+
+
 
 
   let deliveredCount = 0;
@@ -469,27 +485,42 @@ async function startWhatsAppBot() {
       const remoteJid = msg.key.remoteJid;
       if (!remoteJid || remoteJid.includes("@broadcast")) continue;
 
-      // Auto-register sender in subscriber store & PostgreSQL database
-      const senderName = msg.pushName || "";
-      const senderPhone = remoteJid.includes("@") ? remoteJid.split("@")[0] : remoteJid;
-      const isGroup = remoteJid.endsWith("@g.us");
+      // Security: Rate Limiting & Anti-Flood Protection per User
+      const rateCheck = checkUserRateLimit(remoteJid);
+      if (!rateCheck.allowed) {
+        if (rateCheck.isFirstWarning) {
+          addLog(`⚠️ Rate limit triggered for ${remoteJid} (Spam prevention)`);
+          try {
+            await sock.sendMessage(remoteJid, {
+              text: "⚠️ *Slow down!* Please wait a few seconds before sending another command to prevent spamming."
+            }, { quoted: msg });
+          } catch (e) {}
+        }
+        continue;
+      }
 
-      addSubscriber(remoteJid, senderName, senderPhone);
-      recordUser(remoteJid, senderName, senderPhone, isGroup ? "group" : "individual");
-
-      // Extract text content
-      const text = (
+      // Extract and sanitize text content (Anti-Injection & Buffer-Overflow Guard)
+      const rawText = (
         msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
         ""
       ).trim();
 
+      const text = sanitizeInput(rawText, 500);
       if (!text) continue;
 
+      const cleanSenderName = sanitizeInput(senderName, 100);
+      const cleanSenderPhone = sanitizeInput(senderPhone, 50);
+
+      // Auto-register sender in subscriber store & PostgreSQL database
+      addSubscriber(remoteJid, cleanSenderName, cleanSenderPhone);
+      recordUser(remoteJid, cleanSenderName, cleanSenderPhone, isGroup ? "group" : "individual");
+
       // Log interaction in PostgreSQL database
-      recordInteraction(remoteJid, senderName, senderPhone, text);
+      recordInteraction(remoteJid, cleanSenderName, cleanSenderPhone, text);
 
       const lower = text.toLowerCase();
+
       addLog(`📩 Message from ${remoteJid}: "${text}"`);
 
       // 1. DUAL COUNTDOWN (Default)

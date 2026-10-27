@@ -19,10 +19,42 @@ const {
 } = require("./calendar");
 const { formatCustomAnnouncement } = require("./messages");
 
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const { validateNoticeContent, sanitizeInput } = require("./security");
+
 function startWebServer(port = 3000) {
   const app = express();
-  app.use(express.json());
+
+  // 1. Security HTTP Headers (Anti-Clickjacking, Anti-Sniffing, Anti-XSS)
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false
+    })
+  );
+
+  // 2. Global Rate Limiter: Max 200 requests per minute
+  const globalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 200,
+    message: { success: false, error: "Too many requests. Please try again later." },
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+  app.use(globalLimiter);
+
+  // 3. Broadcast Rate Limiter: Max 10 broadcasts per 5 minutes (prevents spam attacks)
+  const broadcastLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 10,
+    message: { success: false, error: "Broadcast limit reached. Please wait a few minutes." }
+  });
+
+  // Strict Body Parser Limit: Prevents JSON memory flood attacks
+  app.use(express.json({ limit: "50kb" }));
   app.use(express.static(path.join(__dirname, "../public")));
+
 
   // 1. API Status Endpoint
   app.get("/api/status", async (req, res) => {
@@ -88,14 +120,19 @@ function startWebServer(port = 3000) {
     }
   });
 
-  // 3. API to Broadcast Message to All WhatsApp Subscribers
-  app.post("/api/broadcast", async (req, res) => {
+  // 3. API to Broadcast Message to All WhatsApp Subscribers (Rate-Limited & Validated)
+  app.post("/api/broadcast", broadcastLimiter, async (req, res) => {
     try {
       const { type = "countdown", title = "Important Notice", message = "" } = req.body;
 
       let messageText = "";
       if (type === "announcement" && message) {
-        messageText = formatCustomAnnouncement(title, message);
+        // Strict Content Validation: Blocks spam, phishing, and malicious payloads
+        const safetyCheck = validateNoticeContent(title, message);
+        if (!safetyCheck.safe) {
+          return res.status(400).json({ success: false, error: safetyCheck.reason });
+        }
+        messageText = formatCustomAnnouncement(sanitizeInput(title, 100), sanitizeInput(message, 2500));
       } else {
         const status = getCountdownStatus();
         const { formatDailyBroadcast } = require("./messages");
@@ -108,6 +145,7 @@ function startWebServer(port = 3000) {
       res.status(500).json({ success: false, error: err.message });
     }
   });
+
 
   // 4. API to manage subscribers
   app.post("/api/subscribers", async (req, res) => {
@@ -217,9 +255,10 @@ function startWebServer(port = 3000) {
     }
   });
 
-  app.listen(port, () => {
-    console.log(`🌐 Web Dashboard running at: http://localhost:${port}`);
+  app.listen(port, "127.0.0.1", () => {
+    console.log(`🔒 Secure Web Dashboard running at: http://localhost:${port}`);
   });
 }
+
 
 module.exports = { startWebServer };

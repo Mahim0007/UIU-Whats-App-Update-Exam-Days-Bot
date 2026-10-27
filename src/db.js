@@ -83,14 +83,20 @@ async function initDatabase() {
 // Auto-initialize on module load
 initDatabase().catch(() => {});
 
+const { sanitizeInput } = require("./security");
+
 /**
  * Record or update user in PostgreSQL database
  */
 async function recordUser(jid, name = "", phone = "", chatType = "individual") {
   try {
     await initDatabase();
-    const cleanPhone = phone || (jid.includes("@") ? jid.split("@")[0] : jid);
-    const displayName = name || (chatType === "group" ? "WhatsApp Group" : `+${cleanPhone}`);
+    const cleanJid = sanitizeInput(jid, 100);
+    const rawPhone = phone || (jid.includes("@") ? jid.split("@")[0] : jid);
+    const cleanPhone = sanitizeInput(rawPhone, 50);
+    const rawName = name || (chatType === "group" ? "WhatsApp Group" : `+${cleanPhone}`);
+    const displayName = sanitizeInput(rawName, 150);
+    const cleanChatType = sanitizeInput(chatType, 20);
 
     const query = `
       INSERT INTO users (jid, phone, name, chat_type, status, total_messages)
@@ -100,7 +106,7 @@ async function recordUser(jid, name = "", phone = "", chatType = "individual") {
         last_active = CURRENT_TIMESTAMP,
         total_messages = users.total_messages + 1;
     `;
-    await pool.query(query, [jid, cleanPhone, displayName, chatType]);
+    await pool.query(query, [cleanJid, cleanPhone, displayName, cleanChatType]);
     return true;
   } catch (err) {
     console.error("PostgreSQL recordUser error:", err.message);
@@ -114,15 +120,21 @@ async function recordUser(jid, name = "", phone = "", chatType = "individual") {
 async function recordInteraction(jid, name = "", phone = "", command = "") {
   try {
     await initDatabase();
-    const cleanPhone = phone || (jid.includes("@") ? jid.split("@")[0] : jid);
+    const cleanJid = sanitizeInput(jid, 100);
+    const rawPhone = phone || (jid.includes("@") ? jid.split("@")[0] : jid);
+    const cleanPhone = sanitizeInput(rawPhone, 50);
+    const cleanName = sanitizeInput(name, 150);
+    const cleanCommand = sanitizeInput(command, 500);
+
     const query = `
       INSERT INTO message_logs (jid, phone, name, command)
       VALUES ($1, $2, $3, $4);
     `;
-    await pool.query(query, [jid, cleanPhone, name, command]);
+    await pool.query(query, [cleanJid, cleanPhone, cleanName, cleanCommand]);
     return true;
   } catch (err) {
     console.error("PostgreSQL recordInteraction error:", err.message);
+
     return false;
   }
 }
