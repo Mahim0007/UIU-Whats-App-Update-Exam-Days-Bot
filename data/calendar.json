@@ -1,0 +1,163 @@
+{
+  "university": "United International University (UIU)",
+  "trimester": "Fall 2026 Trimester",
+  "dates": {
+    "classesBegin": "2026-10-27",
+    "midStart": "2026-12-05",
+    "midEnd": "2026-12-12",
+    "finalStart": "2027-01-25",
+    "finalEnd": "2027-02-01"
+  },
+  "events": [
+    {
+      "date": "2026-10-24",
+      "endDate": "2026-10-26",
+      "title": "Course Advising and Registration",
+      "type": "academic"
+    },
+    {
+      "date": "2026-10-26",
+      "title": "Last day of Course Advising & Registration without Fine",
+      "type": "deadline"
+    },
+    {
+      "date": "2026-10-25",
+      "endDate": "2026-10-26",
+      "title": "Open Day Orientation",
+      "type": "orientation"
+    },
+    {
+      "date": "2026-10-27",
+      "title": "Classes Begin (Fall 2026)",
+      "type": "milestone"
+    },
+    {
+      "date": "2026-10-31",
+      "title": "Last day to drop course(s) with 100% adjustable refund",
+      "type": "deadline"
+    },
+    {
+      "date": "2026-11-04",
+      "title": "Last day to apply for Grade Change (Summer 2026)",
+      "type": "deadline"
+    },
+    {
+      "date": "2026-11-05",
+      "title": "Regular Saturday Class (online)",
+      "type": "class"
+    },
+    {
+      "date": "2026-11-07",
+      "title": "Holiday: National Revolution and Solidarity Day",
+      "type": "holiday"
+    },
+    {
+      "date": "2026-11-08",
+      "title": "Last day of Grade Submission for Project/Thesis/Internship",
+      "type": "deadline"
+    },
+    {
+      "date": "2026-11-09",
+      "title": "Last day to drop course with 50% refund / Advising with Tk. 500 fine",
+      "type": "deadline"
+    },
+    {
+      "date": "2026-11-12",
+      "title": "Regular Saturday Class (online)",
+      "type": "class"
+    },
+    {
+      "date": "2026-11-22",
+      "title": "Last date of 1st Installment (40% Tuition & Trimester Fee)",
+      "type": "installment",
+      "note": "Tk. 500 fine if not paid by today"
+    },
+    {
+      "date": "2026-11-26",
+      "title": "Regular Sunday Class (online)",
+      "type": "class"
+    },
+    {
+      "date": "2026-12-05",
+      "endDate": "2026-12-12",
+      "title": "Mid-Term Exam (Fall 2026)",
+      "type": "exam",
+      "highlight": true
+    },
+    {
+      "date": "2026-12-15",
+      "title": "Last date of 2nd Installment (70% Tuition & Trimester Fee)",
+      "type": "installment",
+      "note": "Tk. 500 fine if not paid by today"
+    },
+    {
+      "date": "2026-12-16",
+      "title": "Holiday: Victory Day",
+      "type": "holiday"
+    },
+    {
+      "date": "2026-12-17",
+      "title": "Regular Wednesday Class (online)",
+      "type": "class"
+    },
+    {
+      "date": "2026-12-23",
+      "title": "Last Day of Course Withdrawal",
+      "type": "deadline"
+    },
+    {
+      "date": "2026-12-25",
+      "title": "Holiday: Christmas Day",
+      "type": "holiday"
+    },
+    {
+      "date": "2026-12-31",
+      "title": "Regular Saturday Class (online)",
+      "type": "class"
+    },
+    {
+      "date": "2027-01-13",
+      "title": "Last date of 3rd Installment (100% Tuition & Trimester Fee)",
+      "type": "installment",
+      "note": "Tk. 500 fine if not paid by today"
+    },
+    {
+      "date": "2027-01-21",
+      "endDate": "2027-01-24",
+      "title": "Classes will remain suspended",
+      "type": "prep"
+    },
+    {
+      "date": "2027-01-24",
+      "title": "Holiday: Shab-e-Barat",
+      "type": "holiday"
+    },
+    {
+      "date": "2027-01-25",
+      "endDate": "2027-02-01",
+      "title": "Final Exam (Fall 2026)",
+      "type": "exam",
+      "highlight": true
+    },
+    {
+      "date": "2027-02-04",
+      "title": "Last day of Grade Submission",
+      "type": "deadline"
+    },
+    {
+      "date": "2027-02-09",
+      "title": "Classes of Spring 2027 Trimester Begin",
+      "type": "milestone"
+    }
+  ],
+  "motivationalQuotes": [
+    "আজকের একটু অতিরিক্ত পরিশ্রমে কালকের সিজিপিএ (CGPA) হাসবে! 📚✨",
+    "Don't study until you get it right; study until you can't get it wrong. 💪",
+    "ছোট ছোট প্রতিদিনের অগ্রগতিই একসময় বড় রেজাল্ট এনে দেয়। হাল ছেড়ো না! 🎯",
+    "The secret to getting ahead is getting started. Focus on one topic today! 🚀",
+    "পরীক্ষার আগের রাতের টেনশন কমাতে আজ থেকেই অন্তত ১ ঘণ্টা রিভিশন দাও! 📖",
+    "Success is the sum of small efforts, repeated day in and day out. 🌟",
+    "ক্লাস নোটস এবং লেকচার স্লাইডগুলো এখনই গুছিয়ে ফেলো। সময় দ্রুত যাচ্ছে! ⏳",
+    "Your future self will thank you for the hard work you put in today! 🎓"
+  ]
+}

@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UIU Exam Countdown Bot | Dual Progression & Auto-Sync Dashboard</title>
+  <meta name="description" content="United International University (UIU) Fall 2026 Exam Countdown WhatsApp Bot. Real-time dual progression tracking for Mid-Term and Final exams with instant WhatsApp auto-update.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #080c14;
+      --card-bg: rgba(15, 23, 42, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-hover: rgba(249, 115, 22, 0.4);
+      --primary: #f97316; /* UIU Orange */
+      --primary-glow: rgba(249, 115, 22, 0.35);
+      --accent-mid: #f59e0b;
+      --accent-final: #38bdf8;
+      --accent-final-glow: rgba(56, 189, 248, 0.35);
+      --accent-green: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(249, 115, 22, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 25%, rgba(56, 189, 248, 0.07) 0%, transparent 45%),
+        radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    /* Header */
+    header {
+      background: rgba(10, 15, 26, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .brand-icon {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 4px 16px var(--primary-glow);
+    }
+
+    .brand h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .brand p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      transition: all 0.3s ease;
+    }
+
+    .status-connected {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+    }
+
+    .status-qr {
+      background: rgba(249, 115, 22, 0.15);
+      color: #fb923c;
+      border: 1px solid rgba(249, 115, 22, 0.35);
+      box-shadow: 0 0 15px rgba(249, 115, 22, 0.15);
+    }
+
+    .status-disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Main Container */
+    main {
+      max-width: 1240px;
+      width: 100%;
+      margin: 1.8rem auto;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.8rem;
+      flex: 1;
+    }
+
+    /* Quick Metrics Ribbon */
+    .metrics-ribbon {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 900px) {
+      .metrics-ribbon {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 550px) {
+      .metrics-ribbon {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .metric-chip {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1rem 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      transition: all 0.2s ease;
+    }
+
+    .metric-chip:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .metric-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .metric-info h4 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .metric-info p {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 0.1rem;
+    }
+
+    /* Dual Progression Hero Grid */
+    .dual-progression-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 860px) {
+      .dual-progression-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .progression-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 1.8rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s ease;
+    }
+
+    .progression-card:hover {
+      border-color: rgba(255, 255, 255, 0.18);
+      transform: translateY(-2px);
+    }
+
+    .progression-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+    }
+
+    .card-mid::before {
+      background: linear-gradient(90deg, #f97316, #f59e0b);
+    }
+
+    .card-final::before {
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+    }
+
+    .card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.8rem;
+    }
+
+    .badge-mid {
+      background: rgba(249, 115, 22, 0.15);
+      color: #fb923c;
+      border: 1px solid rgba(249, 115, 22, 0.3);
+    }
+
+    .badge-final {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .card-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+
+    .card-title-row h3 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .exam-date-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 0.35rem 0.7rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      font-weight: 500;
+    }
+
+    .countdown-stat {
+      display: flex;
+      align-items: baseline;
+      gap: 0.8rem;
+      margin: 1.2rem 0;
+    }
+
+    .big-number {
+      font-size: 4.4rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    .color-mid {
+      background: linear-gradient(135deg, #f97316, #fde047);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .color-final {
+      background: linear-gradient(135deg, #38bdf8, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-label {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .status-alert-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-alert-box strong {
+      color: #fff;
+    }
+
+    /* Progress Bar */
+    .progress-section {
+      margin-top: 0.8rem;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+
+    .progress-track {
+      background: rgba(255, 255, 255, 0.07);
+      height: 12px;
+      border-radius: 9999px;
+      overflow: hidden;
+      padding: 2px;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .fill-mid {
+      background: linear-gradient(90deg, #f97316, #f59e0b);
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+
+    .fill-final {
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      box-shadow: 0 0 12px var(--accent-final-glow);
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 0.45rem;
+    }
+
+    /* Grid Sections */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 860px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 1.6rem;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: #fff;
+    }
+
+    .card-title .badge-sub {
+      font-size: 0.72rem;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Forms */
+    .form-group {
+      margin-bottom: 1.1rem;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.9rem;
+    }
+
+    @media (max-width: 550px) {
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .form-input, .form-textarea {
+      width: 100%;
+      background: #0a0f1d;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 0.75rem 0.95rem;
+      color: #fff;
+      font-size: 0.92rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus, .form-textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .form-check {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin: 0.8rem 0;
+      background: rgba(249, 115, 22, 0.08);
+      border: 1px solid rgba(249, 115, 22, 0.2);
+      padding: 0.7rem 0.9rem;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .form-check input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .form-check label {
+      font-size: 0.88rem;
+      color: #ffedd5;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.4rem;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #ea580c, #c2410c);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(249, 115, 22, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-main);
+      border: 1px solid var(--card-border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-accent {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: white;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-accent:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+      transform: translateY(-1px);
+    }
+
+    .btn-danger-sm {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      padding: 0.25rem 0.6rem;
+      font-size: 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-danger-sm:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    /* WhatsApp Profile & QR */
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      text-align: center;
+      min-height: 260px;
+    }
+
+    .qr-image {
+      background: white;
+      padding: 12px;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      max-width: 220px;
+      width: 100%;
+    }
+
+    .qr-guide {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .connected-profile {
+      text-align: center;
+      padding: 1rem;
+    }
+
+    .profile-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10b981, #059669);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      margin: 0 auto 0.8rem;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Subscribers Table / List */
+    .subscribers-box {
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .subscriber-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0.8rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.85rem;
+    }
+
+    .subscriber-item:last-child {
+      border-bottom: none;
+    }
+
+    .sub-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .badge-user-type {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-self { background: rgba(249, 115, 22, 0.2); color: #fb923c; }
+    .badge-group { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    .badge-individual { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+    /* Events List */
+    .events-box {
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .event-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background 0.15s ease;
+    }
+
+    .event-item:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .event-item:last-child {
+      border-bottom: none;
+    }
+
+    .event-date {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--accent-final);
+      min-width: 95px;
+    }
+
+    .event-name {
+      font-size: 0.88rem;
+      flex: 1;
+      padding: 0 0.75rem;
+      color: #e2e8f0;
+    }
+
+    .event-tag {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+
+    .tag-exam { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .tag-installment { background: rgba(249, 115, 22, 0.2); color: #fb923c; }
+    .tag-holiday { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .tag-academic { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+
+    /* Logs */
+    .log-box {
+      background: #05080f;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 0.85rem;
+      height: 190px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #6ee7b7;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 0.25rem;
+    }
+
+    .log-line {
+      word-break: break-all;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      padding: 0.9rem 1.6rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+      display: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      z-index: 100;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🎓</div>
+      <div>
+        <h1>UIU Exam Countdown Bot</h1>
+        <p>United International University • Dual Progression (Morning 9 AM & Evening 7 PM Alerts)</p>
+      </div>
+    </div>
+    <div id="connectionBadge" class="badge-status status-disconnected">
+      <span class="pulse-dot"></span>
+      <span id="connectionText">Connecting...</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Quick Metrics Ribbon -->
+    <section class="metrics-ribbon">
+      <div class="metric-chip">
+        <div class="metric-icon">📅</div>
+        <div class="metric-info">
+          <h4>Today's Date</h4>
+          <p id="todayDate">Oct 27, 2026</p>
+        </div>
+      </div>
+      <div class="metric-chip">
+        <div class="metric-icon" style="color: #fb923c;">📘</div>
+        <div class="metric-info">
+          <h4>Mid-Term Days Left</h4>
+          <p id="midDaysQuick">39 Days</p>
+        </div>
+      </div>
+      <div class="metric-chip">
+        <div class="metric-icon" style="color: #38bdf8;">🏆</div>
+        <div class="metric-info">
+          <h4>Final Exam Days Left</h4>
+          <p id="finalDaysQuick">90 Days</p>
+        </div>
+      </div>
+      <div class="metric-chip">
+        <div class="metric-icon" style="color: #34d399;">👥</div>
+        <div class="metric-info">
+          <h4>Active Subscribers</h4>
+          <p id="subscribersCount">1 Chat</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Smart Progression Section: Single Active Progression & Trimester Roadmap -->
+    <section class="dual-progression-grid">
+      <!-- 1. Live Active Exam Progression Card -->
+      <div id="activeProgressionCard" class="progression-card card-mid">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+            <div id="activeBadge" class="card-badge badge-mid">🎯 Active in WhatsApp Alerts</div>
+            <div class="exam-date-pill" id="activeDateRange">Dec 5 - 12, 2026</div>
+          </div>
+          
+          <div class="card-title-row">
+            <h3 id="activeExamTitle">Mid-Term Exam Progression</h3>
+          </div>
+
+          <div class="countdown-stat">
+            <div id="activeDaysDisplay" class="big-number color-mid">39</div>
+            <div id="activeDaysLabel" class="stat-label">Days Remaining</div>
+          </div>
+
+          <div class="status-alert-box" id="activeStatusBox">
+            📢 <strong id="activeStatusText">Mid coming 39 days remaining</strong>
+          </div>
+        </div>
+
+        <div class="progress-section">
+          <div class="progress-header">
+            <span id="activeProgressLabel">Mid-Term Progression</span>
+            <strong id="activePercentText" style="color: #fb923c;">0%</strong>
+          </div>
+          <div class="progress-track">
+            <div id="activeProgressFill" class="progress-fill fill-mid" style="width: 0%;"></div>
+          </div>
+          <div class="progress-meta">
+            <span id="activeElapsedMeta">0 of 39 days passed</span>
+            <span id="activeRuleMeta" style="color: #34d399; font-weight: 500;">🔒 Single Active Progression in WhatsApp</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Trimester Roadmap & Sequence Policy -->
+      <div class="progression-card" style="border-top: 4px solid #38bdf8;">
+        <div>
+          <div class="card-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+            🗓️ Fall 2026 Milestone Roadmap
+          </div>
+          <div class="card-title-row">
+            <h3>Trimester Milestones (1 at a Time)</h3>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.2rem;">
+            হোয়াটসঅ্যাপ মেসেজে একসাথে ২টি প্রোগ্রেশন যাবে না। এখন শুধুই মিড-টার্ম প্রোগ্রেশন যাবে; মিড শেষ হলে স্বয়ংক্রিয়ভাবে ফাইনাল এক্সাম প্রোগ্রেশন চালু হবে।
+          </p>
+
+          <!-- Milestone Sequence -->
+          <div style="display: flex; flex-direction: column; gap: 0.9rem;">
+            <!-- Step 1: Mid-Term -->
+            <div id="milestone1Row" style="background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); padding: 0.8rem 1rem; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 700; color: #ffedd5; font-size: 0.95rem;">1️⃣ Mid-Term Exam</div>
+                <div style="font-size: 0.78rem; color: #fed7aa;" id="roadmapMidDates">Dec 5 – Dec 12, 2026</div>
+              </div>
+              <span id="roadmapMidBadge" style="background: #ea580c; color: white; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700;">🟢 ACTIVE NOW</span>
+            </div>
+
+            <!-- Step 2: Final Exam -->
+            <div id="milestone2Row" style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); padding: 0.8rem 1rem; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 700; color: #e0f2fe; font-size: 0.95rem;">2️⃣ Final Exam</div>
+                <div style="font-size: 0.78rem; color: #bae6fd;" id="roadmapFinalDates">Jan 25 – Feb 1, 2027</div>
+              </div>
+              <span id="roadmapFinalBadge" style="background: rgba(255, 255, 255, 0.1); color: #94a3b8; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">⏳ NEXT MILESTONE</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 1.2rem; padding: 0.75rem 0.9rem; background: rgba(0, 0, 0, 0.25); border-radius: 10px; font-size: 0.8rem; color: #94a3b8; display: flex; align-items: center; gap: 0.6rem;">
+          <span style="font-size: 1.1rem;">⏰</span>
+          <div>
+            <b>Automated Daily Times:</b> সকাল ৯:০০ টা (Morning) এবং রাত ৭:০০ টা (Evening)
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Two-Column Interactive Row: Dates Editor & WhatsApp Connection -->
+    <div class="dashboard-grid">
+      <!-- ⚡ Live Exam Dates & Auto-Sync Editor -->
+      <section class="card">
+        <h3 class="card-title">
+          ⚡ Live Exam Dates & Auto-Sync
+          <span class="badge-sub">Auto-Updates WhatsApp</span>
+        </h3>
+        <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 1.2rem;">
+          Update any date below. When saved, the bot automatically syncs and blasts an instant update alert to everyone's WhatsApp!
+        </p>
+
+        <form id="calendarDatesForm">
+          <div class="form-group">
+            <label class="form-label" for="inputClassesBegin">Classes Begin Date</label>
+            <input type="date" id="inputClassesBegin" class="form-input" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="inputMidStart">Mid-Term Start Date</label>
+              <input type="date" id="inputMidStart" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="inputMidEnd">Mid-Term End Date</label>
+              <input type="date" id="inputMidEnd" class="form-input" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="inputFinalStart">Final Exam Start Date</label>
+              <input type="date" id="inputFinalStart" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="inputFinalEnd">Final Exam End Date</label>
+              <input type="date" id="inputFinalEnd" class="form-input" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputChangeNote">Optional Notice Note for WhatsApp</label>
+            <input type="text" id="inputChangeNote" class="form-input" placeholder="e.g., Dates revised as per UIU official notice">
+          </div>
+
+          <div class="form-check">
+            <input type="checkbox" id="checkAutoBroadcast" checked>
+            <label for="checkAutoBroadcast">
+              🔔 <b>Auto-Broadcast Update to Everyone's WhatsApp Immediately</b>
+            </label>
+          </div>
+
+          <button type="submit" id="btnSaveDates" class="btn btn-primary" style="width: 100%;">
+            💾 Save Dates & Auto-Update WhatsApp Subscribers
+          </button>
+        </form>
+      </section>
+
+      <!-- 📲 WhatsApp Connection & Quick Controls -->
+      <section class="card">
+        <h3 class="card-title">
+          📲 WhatsApp Connection & Broadcast
+          <span class="badge-sub">Live Status</span>
+        </h3>
+
+        <!-- Loading State -->
+        <div id="loadingSection" class="qr-container">
+          <p style="color: var(--text-muted);">Initializing bot connection...</p>
+        </div>
+
+        <!-- QR Code Section -->
+        <div id="qrSection" class="qr-container" style="display: none;">
+          <img id="qrImage" class="qr-image" alt="WhatsApp QR Code">
+          <div class="qr-guide">
+            <strong>Open WhatsApp on your phone:</strong><br>
+            Settings (or 3-dots) ➜ <b>Linked Devices</b> ➜ <b>Link a Device</b><br>
+            <span style="display: inline-block; margin-top: 0.5rem; color: #34d399; font-weight: 600;">⚡ Scan once only! Login is saved permanently in auth_info.</span>
+          </div>
+        </div>
+
+        <!-- Connected State -->
+        <div id="connectedSection" class="connected-profile" style="display: none;">
+          <div class="profile-avatar">✅</div>
+          <h4 style="font-size: 1.25rem; font-weight: 700; color: #fff;" id="botUserHeading">Bot is Connected!</h4>
+          <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.2rem;" id="userPhoneDisplay">
+            Logged in via WhatsApp
+          </p>
+
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <button id="btnBroadcastDual" class="btn btn-primary" style="width: 100%;">
+              🚀 Broadcast Active Exam Countdown to Everyone
+            </button>
+            <button id="btnTestBroadcast" class="btn btn-secondary" style="width: 100%;">
+              🔔 Send Test Sample to Self
+            </button>
+          </div>
+
+          <!-- Shareable 1-Click WhatsApp Link for Lifetime Enrollment -->
+          <div id="waLinkCard" style="margin-top: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 0.85rem; text-align: left;">
+            <div style="font-size: 0.82rem; font-weight: 700; color: #34d399; margin-bottom: 0.3rem;">
+              🔗 Shareable 1-Click WhatsApp Link
+            </div>
+            <div style="font-size: 0.78rem; color: #cbd5e1; margin-bottom: 0.6rem;">
+              স্টুডেন্টদের সাথে এই লিংকটি শেয়ার করুন। লিংকে ক্লিক করে শুধু <b>'Hi'</b> পাঠালেই তারা সারাজীবনের জন্য অটো-সাবস্ক্রাইব হয়ে যাবে!
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="text" id="waShareUrl" readonly style="flex: 1; background: #080c14; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.78rem;" value="Connecting...">
+              <button id="btnCopyWaLink" type="button" class="btn btn-secondary" style="padding: 0.4rem 0.75rem; font-size: 0.75rem; white-space: nowrap;">📋 Copy Link</button>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Subscribers Box -->
+        <div style="margin-top: 1.2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+            <h4 style="font-size: 0.85rem; font-weight: 600; color: #38bdf8; text-transform: uppercase;">
+              🐘 PostgreSQL: "UIU whats app BOT" (<span id="subListCount">1</span>)
+            </h4>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <a href="/api/database/export-csv" class="btn btn-secondary" style="padding: 0.2rem 0.6rem; font-size: 0.75rem; text-decoration: none; color: #38bdf8;">
+                📥 Export CSV
+              </a>
+              <button id="btnAddSubPrompt" class="btn btn-secondary" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">
+                + Add Number/Group
+              </button>
+            </div>
+          </div>
+          <div id="subscribersList" class="subscribers-box">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Announcement Broadcaster & Daily Settings Grid -->
+    <div class="dashboard-grid">
+      <!-- 📢 Custom Notice / Announcement Broadcaster -->
+      <section class="card">
+        <h3 class="card-title">
+          📢 Broadcast Custom Notice
+          <span class="badge-sub">Push Notification</span>
+        </h3>
+        <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Type any custom announcement (e.g. advising updates, class suspension, exam room seat plans) to push directly to everyone.
+        </p>
+
+        <form id="announcementForm">
+          <div class="form-group">
+            <label class="form-label" for="noticeTitle">Notice Title</label>
+            <input type="text" id="noticeTitle" class="form-input" placeholder="e.g., Mid-Term Seat Plan Published" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="noticeMessage">Notice Body Message</label>
+            <textarea id="noticeMessage" class="form-textarea" placeholder="Type notice details here... It will be delivered to everyone on WhatsApp." required></textarea>
+          </div>
+
+          <button type="submit" id="btnSendNotice" class="btn btn-accent" style="width: 100%;">
+            📢 Blast Custom Notice to All WhatsApp Subscribers
+          </button>
+        </form>
+      </section>
+
+      <!-- ⚙️ Dual Daily Notification Schedulers: Morning 9 AM & Evening 7 PM -->
+      <section class="card">
+        <h3 class="card-title">
+          ⏰ Dual Daily Notification Schedule
+          <span class="badge-sub">Morning & Evening Cron</span>
+        </h3>
+        <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 1rem;">
+          সকাল ৯:০০ টায় সকালের কাউন্টডাউন এবং রাত ৭:০০ টায় রিভিশন ও কাউন্টডাউন অ্যালার্ট স্বয়ংক্রিয়ভাবে পাঠানো হবে।
+        </p>
+
+        <form id="settingsForm">
+          <div class="form-row">
+            <!-- Morning 9:00 AM -->
+            <div class="form-group">
+              <label class="form-label" for="morningScheduleTime">🌅 Morning Alert Time</label>
+              <input type="time" id="morningScheduleTime" class="form-input" value="09:00">
+            </div>
+
+            <!-- Evening 7:00 PM (19:00) -->
+            <div class="form-group">
+              <label class="form-label" for="eveningScheduleTime">🌙 Evening / Night Alert Time</label>
+              <input type="time" id="eveningScheduleTime" class="form-input" value="19:00">
+            </div>
+          </div>
+
+          <div class="form-check" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25);">
+            <input type="checkbox" id="enableMorningNotification" checked>
+            <label for="enableMorningNotification" style="color: #fef3c7;">
+              🌅 <b>Enable Morning Alert (Default: 9:00 AM)</b>
+            </label>
+          </div>
+
+          <div class="form-check" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25);">
+            <input type="checkbox" id="enableEveningNotification" checked>
+            <label for="enableEveningNotification" style="color: #e0f2fe;">
+              🌙 <b>Enable Evening Alert (Default: 7:00 PM / 19:00)</b>
+            </label>
+          </div>
+
+          <div class="form-group" style="margin-top: 0.5rem;">
+            <label class="form-label" for="targetPhone">Default Admin Recipient</label>
+            <input type="text" id="targetPhone" class="form-input" placeholder="self (Message yourself) or 8801XXXXXXXXX">
+            <small style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.25rem; display: block;">
+              Use "self" to message your own logged in WhatsApp account!
+            </small>
+          </div>
+
+          <div class="form-check" style="background: rgba(255, 255, 255, 0.03); border-color: var(--card-border);">
+            <input type="checkbox" id="enableDaily" checked>
+            <label for="enableDaily" style="color: var(--text-main);">
+              Master Switch: Enable Automated Daily Broadcasts
+            </label>
+          </div>
+
+          <button type="submit" class="btn btn-secondary" style="width: 100%;">
+            💾 Save Notification Schedule Settings
+          </button>
+        </form>
+      </section>
+    </div>
+
+    <!-- Calendar Highlights & Live Logs -->
+    <div class="dashboard-grid">
+      <!-- Academic Events -->
+      <section class="card">
+        <h3 class="card-title">
+          📅 Fall 2026 Academic Events
+          <span class="badge-sub">Official UIU Routine</span>
+        </h3>
+        <div id="eventsList" class="events-box">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- Live Bot Logs -->
+      <section class="card">
+        <h3 class="card-title">
+          💻 Live Bot Activity & WhatsApp Logs
+          <span class="badge-sub">Real-Time</span>
+        </h3>
+        <div id="logBox" class="log-box">
+          <div class="log-line">Waiting for bot activity...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="toast">Settings Saved!</div>
+
+  <script>
+    let currentData = null;
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        currentData = data;
+        updateUI(data);
+      } catch (err) {
+        console.error("Failed to fetch bot status", err);
+      }
+    }
+
+    function updateUI(data) {
+      const { bot, config, countdown, calendar, subscribers } = data;
+
+      // 1. Quick Metrics
+      document.getElementById('todayDate').textContent = countdown.today;
+      document.getElementById('midDaysQuick').textContent = countdown.midProgress.isPassed 
+        ? "Completed ✅" 
+        : countdown.midProgress.remainingDays + " Days";
+      document.getElementById('finalDaysQuick').textContent = countdown.finalProgress.isPassed 
+        ? "Completed 🏆" 
+        : countdown.finalProgress.remainingDays + " Days";
+      document.getElementById('subscribersCount').textContent = (subscribers ? subscribers.length : 1) + " Subscribed";
+
+      // 2. Active Progression Card (Only 1 at a time!)
+      const active = countdown.activeExam;
+      const isMid = countdown.activeType === 'mid';
+      const card = document.getElementById('activeProgressionCard');
+      const badge = document.getElementById('activeBadge');
+      const title = document.getElementById('activeExamTitle');
+      const daysDisplay = document.getElementById('activeDaysDisplay');
+      const daysLabel = document.getElementById('activeDaysLabel');
+      const dateRange = document.getElementById('activeDateRange');
+      const statusText = document.getElementById('activeStatusText');
+      const progressLabel = document.getElementById('activeProgressLabel');
+      const percentText = document.getElementById('activePercentText');
+      const progressFill = document.getElementById('activeProgressFill');
+      const elapsedMeta = document.getElementById('activeElapsedMeta');
+
+      dateRange.textContent = active.dates;
+      title.textContent = active.title + " Progression";
+      progressLabel.textContent = active.title + " Progression";
+      statusText.textContent = active.statusMessage;
+
+      if (isMid) {
+        card.className = "progression-card card-mid";
+        badge.className = "card-badge badge-mid";
+        badge.textContent = "🎯 Milestone 1 • Active in WhatsApp";
+        daysDisplay.className = "big-number color-mid";
+        percentText.style.color = "#fb923c";
+        progressFill.className = "progress-fill fill-mid";
+      } else {
+        card.className = "progression-card card-final";
+        badge.className = "card-badge badge-final";
+        badge.textContent = "🏆 Milestone 2 • Active in WhatsApp";
+        daysDisplay.className = "big-number color-final";
+        percentText.style.color = "#38bdf8";
+        progressFill.className = "progress-fill fill-final";
+      }
+
+      if (active.isOngoing) {
+        daysDisplay.textContent = "NOW";
+        daysLabel.textContent = "Exam Ongoing";
+      } else if (active.isPassed) {
+        daysDisplay.textContent = "DONE";
+        daysLabel.textContent = "Trimester Done";
+      } else {
+        daysDisplay.textContent = active.daysRemaining;
+        daysLabel.textContent = active.daysRemaining === 1 ? "Day Remaining" : "Days Remaining";
+      }
+
+      percentText.textContent = active.percent + "%";
+      progressFill.style.width = active.percent + "%";
+      elapsedMeta.textContent = `${active.elapsedDays} of ${active.totalDays} days passed`;
+
+      // 3. Roadmap Dates & Badges
+      if (countdown.midProgress) {
+        document.getElementById('roadmapMidDates').textContent = countdown.midProgress.dates;
+      }
+      if (countdown.finalProgress) {
+        document.getElementById('roadmapFinalDates').textContent = countdown.finalProgress.dates;
+      }
+
+      if (isMid) {
+        document.getElementById('roadmapMidBadge').textContent = "🟢 ACTIVE NOW";
+        document.getElementById('roadmapMidBadge').style.background = "#ea580c";
+        document.getElementById('roadmapMidBadge').style.color = "white";
+        document.getElementById('roadmapFinalBadge').textContent = "⏳ NEXT (Starts After Mid)";
+        document.getElementById('roadmapFinalBadge').style.background = "rgba(255,255,255,0.1)";
+        document.getElementById('roadmapFinalBadge').style.color = "#94a3b8";
+      } else {
+        document.getElementById('roadmapMidBadge').textContent = "✅ COMPLETED";
+        document.getElementById('roadmapMidBadge').style.background = "rgba(16,185,129,0.2)";
+        document.getElementById('roadmapMidBadge').style.color = "#34d399";
+        document.getElementById('roadmapFinalBadge').textContent = "🟢 ACTIVE NOW";
+        document.getElementById('roadmapFinalBadge').style.background = "#0284c7";
+        document.getElementById('roadmapFinalBadge').style.color = "white";
+      }
+
+      // 4. Populate Live Dates Form (if not focused)
+      if (calendar && calendar.dates) {
+        const d = calendar.dates;
+        const cbInput = document.getElementById('inputClassesBegin');
+        const msInput = document.getElementById('inputMidStart');
+        const meInput = document.getElementById('inputMidEnd');
+        const fsInput = document.getElementById('inputFinalStart');
+        const feInput = document.getElementById('inputFinalEnd');
+
+        if (!cbInput.matches(':focus')) cbInput.value = d.classesBegin || '';
+        if (!msInput.matches(':focus')) msInput.value = d.midStart || '';
+        if (!meInput.matches(':focus')) meInput.value = d.midEnd || '';
+        if (!fsInput.matches(':focus')) fsInput.value = d.finalStart || '';
+        if (!feInput.matches(':focus')) feInput.value = d.finalEnd || '';
+      }
+
+      // 5. Connection Status Display
+      const badge = document.getElementById('connectionBadge');
+      const text = document.getElementById('connectionText');
+      const qrSec = document.getElementById('qrSection');
+      const connSec = document.getElementById('connectedSection');
+      const loadSec = document.getElementById('loadingSection');
+
+      badge.className = 'badge-status';
+      if (bot.status === 'connected') {
+        badge.classList.add('status-connected');
+        text.textContent = 'Bot Connected';
+        qrSec.style.display = 'none';
+        loadSec.style.display = 'none';
+        connSec.style.display = 'block';
+        if (bot.userInfo) {
+          document.getElementById('botUserHeading').textContent = bot.userInfo.name || "Bot is Active";
+          document.getElementById('userPhoneDisplay').textContent = "Connected as: +" + bot.userInfo.phone;
+          if (bot.waLink) {
+            const shareInput = document.getElementById('waShareUrl');
+            if (shareInput) shareInput.value = bot.waLink;
+          }
+        }
+
+      } else if (bot.status === 'qr_ready') {
+        badge.classList.add('status-qr');
+        text.textContent = 'Scan QR Code';
+        qrSec.style.display = 'flex';
+        connSec.style.display = 'none';
+        loadSec.style.display = 'none';
+        if (bot.qrDataUrl) {
+          document.getElementById('qrImage').src = bot.qrDataUrl;
+        }
+      } else {
+        badge.classList.add('status-disconnected');
+        text.textContent = 'Disconnected';
+        qrSec.style.display = 'none';
+        connSec.style.display = 'none';
+        loadSec.style.display = 'flex';
+      }
+
+      // 6. Dual Schedule Settings Form
+      if (!document.getElementById('targetPhone').matches(':focus')) {
+        document.getElementById('targetPhone').value = config.targetPhone || 'self';
+      }
+      if (!document.getElementById('morningScheduleTime').matches(':focus')) {
+        document.getElementById('morningScheduleTime').value = config.morningScheduleTime || config.dailyScheduleTime || '09:00';
+      }
+      if (!document.getElementById('eveningScheduleTime').matches(':focus')) {
+        document.getElementById('eveningScheduleTime').value = config.eveningScheduleTime || '19:00';
+      }
+      document.getElementById('enableMorningNotification').checked = config.enableMorningNotification !== false;
+      document.getElementById('enableEveningNotification').checked = config.enableEveningNotification !== false;
+      document.getElementById('enableDaily').checked = config.enableDailyNotification !== false;
+
+      // 7. Subscribers List
+      if (subscribers && subscribers.length) {
+        document.getElementById('subListCount').textContent = subscribers.length;
+        const subBox = document.getElementById('subscribersList');
+        subBox.innerHTML = subscribers.map(sub => {
+          let badgeClass = 'badge-individual';
+          if (sub.type === 'self') badgeClass = 'badge-self';
+          else if (sub.type === 'group') badgeClass = 'badge-group';
+
+          return `
+            <div class="subscriber-item">
+              <div class="sub-meta">
+                <span class="badge-user-type ${badgeClass}">${sub.type}</span>
+                <strong>${sub.name || sub.jid}</strong>
+                <span style="color: var(--text-dim); font-size: 0.75rem;">(${sub.phone || sub.jid})</span>
+              </div>
+              ${sub.type !== 'self' ? `
+                <button class="btn-danger-sm" onclick="removeSub('${sub.jid}')">Remove</button>
+              ` : `<span style="font-size: 0.75rem; color: var(--text-dim);">Admin</span>`}
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 8. Academic Events List
+      if (calendar && calendar.events && calendar.events.length) {
+        const eventsList = document.getElementById('eventsList');
+        eventsList.innerHTML = calendar.events.slice(0, 12).map(ev => {
+          let tagClass = 'tag-academic';
+          if (ev.type === 'exam') tagClass = 'tag-exam';
+          else if (ev.type === 'installment') tagClass = 'tag-installment';
+          else if (ev.type === 'holiday') tagClass = 'tag-holiday';
+
+          return `
+            <div class="event-item">
+              <span class="event-date">${ev.date}</span>
+              <span class="event-name">${ev.title}</span>
+              <span class="event-tag ${tagClass}">${ev.type}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 9. Logs
+      if (bot.logs && bot.logs.length) {
+        const logBox = document.getElementById('logBox');
+        logBox.innerHTML = bot.logs.map(l => `<div class="log-line">${l}</div>`).join('');
+      }
+    }
+
+    // Save Calendar Dates & Auto-Broadcast to WhatsApp
+    document.getElementById('calendarDatesForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btnSaveDates');
+      btn.disabled = true;
+      btn.textContent = '⏳ Saving & Auto-Updating WhatsApp...';
+
+      const dates = {
+        classesBegin: document.getElementById('inputClassesBegin').value,
+        midStart: document.getElementById('inputMidStart').value,
+        midEnd: document.getElementById('inputMidEnd').value,
+        finalStart: document.getElementById('inputFinalStart').value,
+        finalEnd: document.getElementById('inputFinalEnd').value
+      };
+
+      const autoBroadcast = document.getElementById('checkAutoBroadcast').checked;
+      const changeNote = document.getElementById('inputChangeNote').value;
+
+      try {
+        const res = await fetch('/api/calendar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dates, autoBroadcast, changeNote })
+        });
+        const result = await res.json();
+        if (result.success) {
+          if (autoBroadcast && result.broadcast && result.broadcast.success) {
+            showToast('✅ Dates saved & auto-broadcasted to WhatsApp subscribers!');
+          } else {
+            showToast('✅ Dates saved successfully in bot!');
+          }
+          fetchStatus();
+        } else {
+          showToast('❌ Error: ' + (result.error || 'Failed to save dates'));
+        }
+      } catch (err) {
+        showToast('❌ Network error while saving dates');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 Save Dates & Auto-Update WhatsApp Subscribers';
+      }
+    });
+
+    // Broadcast Dual Countdown Button
+    document.getElementById('btnBroadcastDual').addEventListener('click', async () => {
+      const btn = document.getElementById('btnBroadcastDual');
+      btn.disabled = true;
+      btn.textContent = '⏳ Broadcasting to everyone...';
+
+      try {
+        const res = await fetch('/api/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'countdown' })
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast(`🚀 Delivered countdown to ${result.deliveredCount} subscriber(s)!`);
+        } else {
+          showToast('⚠️ Broadcast error: ' + (result.error || 'Check connection'));
+        }
+      } catch (err) {
+        showToast('❌ Failed to trigger broadcast');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🚀 Broadcast Active Exam Countdown to Everyone';
+      }
+    });
+
+    // Send Test to Self Button
+    document.getElementById('btnTestBroadcast').addEventListener('click', async () => {
+      const btn = document.getElementById('btnTestBroadcast');
+      btn.disabled = true;
+      btn.textContent = '⏳ Sending test...';
+
+      try {
+        const res = await fetch('/api/broadcast-test', { method: 'POST' });
+        const result = await res.json();
+        if (result.success) {
+          showToast('✅ Sample test alert delivered to WhatsApp!');
+        } else {
+          showToast('⚠️ ' + (result.error || 'Failed to send'));
+        }
+      } catch (err) {
+        showToast('❌ Test error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔔 Send Test Sample to Self';
+      }
+    });
+
+    // Broadcast Custom Notice
+    document.getElementById('announcementForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('noticeTitle').value;
+      const message = document.getElementById('noticeMessage').value;
+      const btn = document.getElementById('btnSendNotice');
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Blasting notice to WhatsApp...';
+
+      try {
+        const res = await fetch('/api/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'announcement', title, message })
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast(`📢 Notice delivered to ${result.deliveredCount} WhatsApp subscriber(s)!`);
+          document.getElementById('noticeMessage').value = '';
+        } else {
+          showToast('⚠️ Error: ' + (result.error || 'Failed to send'));
+        }
+      } catch (err) {
+        showToast('❌ Announcement broadcast error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📢 Blast Custom Notice to All WhatsApp Subscribers';
+      }
+    });
+
+    // Save Schedule Settings (Morning 9:00 AM & Evening 7:00 PM)
+    document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const targetPhone = document.getElementById('targetPhone').value;
+      const morningScheduleTime = document.getElementById('morningScheduleTime').value;
+      const eveningScheduleTime = document.getElementById('eveningScheduleTime').value;
+      const enableMorningNotification = document.getElementById('enableMorningNotification').checked;
+      const enableEveningNotification = document.getElementById('enableEveningNotification').checked;
+      const enableDailyNotification = document.getElementById('enableDaily').checked;
+
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetPhone,
+            morningScheduleTime,
+            eveningScheduleTime,
+            enableMorningNotification,
+            enableEveningNotification,
+            enableDailyNotification
+          })
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast('✅ Dual schedule saved (Morning 9 AM & Evening 7 PM)!');
+        }
+      } catch (err) {
+        showToast('❌ Failed to save settings');
+      }
+    });
+
+    // Add Subscriber Prompt
+    document.getElementById('btnAddSubPrompt').addEventListener('click', async () => {
+      const input = prompt("Enter student phone number (e.g. 8801712345678) or WhatsApp Group ID (e.g. 123456789@g.us):");
+      if (!input) return;
+
+      const clean = input.trim();
+      let jid = clean;
+      if (!clean.includes('@')) {
+        jid = clean.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+      }
+
+      const name = prompt("Enter a label/name for this subscriber (optional):") || "";
+
+      try {
+        const res = await fetch('/api/subscribers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'add', jid, name, phone: clean })
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast('✅ Subscriber added!');
+          fetchStatus();
+        }
+      } catch (err) {
+        showToast('❌ Failed to add subscriber');
+      }
+    });
+
+    // Remove Subscriber
+    async function removeSub(jid) {
+      if (!confirm(`Remove subscriber ${jid}?`)) return;
+      try {
+        const res = await fetch('/api/subscribers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'remove', jid })
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast('➖ Subscriber removed');
+          fetchStatus();
+        }
+      } catch (err) {
+        showToast('❌ Failed to remove subscriber');
+      }
+    }
+
+    // Copy WhatsApp Share Link
+    document.getElementById('btnCopyWaLink')?.addEventListener('click', () => {
+      const input = document.getElementById('waShareUrl');
+      if (input && input.value && input.value !== 'Connecting...') {
+        navigator.clipboard.writeText(input.value);
+        showToast('📋 Link copied! Share with UIU students on Messenger or Facebook.');
+      } else {
+        showToast('⚠️ Bot must be connected first to get link');
+      }
+    });
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3500);
+    }
+
+
+    // Live Polling
+    fetchStatus();
+    setInterval(fetchStatus, 2000);
+  </script>
+</body>
+</html>

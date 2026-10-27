@@ -1,0 +1,304 @@
+/**
+ * UIU WhatsApp Bot Message Formatter
+ * Formats rich messages for WhatsApp with emojis, markdown, and SINGLE ACTIVE progression.
+ * Rule:
+ *  - During pre-mid / mid: ONLY Mid-Term progression is shown.
+ *  - After mid finishes: ONLY Final Exam progression is shown.
+ *  - Never show both at the same time!
+ */
+
+function formatDailyBroadcast(status, slot = "auto") {
+  const currentHour = new Date().getHours();
+  const isMorning = slot === "morning" || (slot === "auto" && currentHour < 14);
+  const isEvening = slot === "evening" || (slot === "auto" && currentHour >= 17);
+
+  const active = status.activeExam;
+  const isMid = status.activeType === "mid";
+  const isFinal = status.activeType === "final";
+
+  let headerBanner = "";
+  if (active.isOngoing) {
+    headerBanner = isMid 
+      ? "📝 *UIU MID-TERM EXAM IN PROGRESS* 🎯"
+      : "🏁 *UIU FINAL EXAM IN PROGRESS* 🏆";
+  } else if (status.phase === "POST_TRIMESTER") {
+    headerBanner = "🎉 *UIU TRIMESTER COMPLETED* 🌴";
+  } else if (isMorning) {
+    headerBanner = isMid 
+      ? "🌅 *UIU MID-TERM COUNTDOWN (9:00 AM)* 🌅" 
+      : "🌅 *UIU FINAL EXAM COUNTDOWN (9:00 AM)* 🌅";
+  } else if (isEvening) {
+    headerBanner = isMid 
+      ? "🌙 *UIU MID-TERM REVISION ALERT (7:00 PM)* 🌙" 
+      : "🌙 *UIU FINAL REVISION ALERT (7:00 PM)* 🌙";
+  } else {
+    headerBanner = "🚨 *UIU EXAM COUNTDOWN ALERT* 🚨";
+  }
+
+  const greetingLine = status.isFirstDayPostMid
+    ? "🎉 _মিড-টার্ম পরীক্ষা সমাপ্ত! আজ থেকে স্বয়ংক্রিয়ভাবে ফাইনাল পরীক্ষার অফিশিয়াল কাউন্টডাউন ও রিভিশন মিশন শুরু হলো!_\n"
+    : isMorning 
+    ? "☀️ _শুভ সকাল! আজকের দিনটি পড়াশোনায় মনোযোগ দিয়ে শুরু করো!_\n"
+    : isEvening
+    ? "🌙 _শুভ সন্ধ্যা! সারাদিনের লেকচারগুলো আজ রাতে অন্তত ১ ঘণ্টা রিভিশন দাও!_\n"
+    : "";
+
+  let eventsSection = "";
+  if (status.upcomingEvents && status.upcomingEvents.length > 0) {
+    eventsSection = "📌 *Upcoming Academic Events:*\n" + status.upcomingEvents
+      .map(ev => `• *${ev.date}:* ${ev.title} _(${ev.daysUntil === 0 ? "Today!" : `in ${ev.daysUntil} days`})_`)
+      .join("\n") + "\n";
+  }
+
+  let installmentSection = "";
+  if (status.nextInstallment) {
+    installmentSection = `💳 *Tuition Installment Alert:*\n• ${status.nextInstallment.title}\n  📅 Deadline: *${status.nextInstallment.date}* _(${status.nextInstallment.daysUntil} days left)_\n  ⚠️ ${status.nextInstallment.note || "Tk. 500 fine after deadline"}\n`;
+  }
+
+  return `${headerBanner}
+🏛️ *${status.university || "United International University (UIU)"}*
+🗓️ *${status.trimester || "Fall 2026 Trimester"}* | 📅 ${status.today}
+━━━━━━━━━━━━━━━━━━━━━━━━
+${greetingLine}
+⏳ *${active.statusMessage}*
+📅 *Exam Dates:* ${active.dates}
+
+📊 *${active.title} Progression:*
+${active.bar}
+• ⏳ *${active.daysRemaining} days remaining* (${active.elapsedDays}/${active.totalDays} days passed)
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+${eventsSection ? `${eventsSection}\n` : ""}${installmentSection ? `${installmentSection}\n` : ""}💡 *${isEvening ? "Evening Reflection" : "Daily Motivation"}:*
+"${status.quote}"
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+💬 _Reply *!countdown*, *!routine*, or *!help* anytime!_`;
+}
+
+function formatCountdownReply(status, specificTarget = "current") {
+  const active = status.activeExam;
+
+  // If user specifically asked for mid
+  if (specificTarget === "mid") {
+    return `⏱️ *UIU Mid-Term Exam Countdown*
+🏛️ *United International University*
+━━━━━━━━━━━━━━━━━━━━━━━━
+📅 *Today:* ${status.today}
+🗓️ *Exam Dates:* Dec 5, 2026 - Dec 12, 2026
+📢 *Status:* *${active.type === 'mid' ? active.statusMessage : 'Mid-Term Exam Completed ✅'}*
+
+📊 *Mid-Term Progression:*
+${active.type === 'mid' ? active.bar : '[██████████] 100%'}
+• Remaining: *${active.type === 'mid' ? `${active.daysRemaining} days` : '0 days (Completed)'}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+💬 _Type *!routine* for calendar or *!help* for commands!_`;
+  }
+
+  // If user specifically asked for final
+  if (specificTarget === "final") {
+    const dates = status.dates || {};
+    return `⏱️ *UIU Final Exam Countdown*
+🏛️ *United International University*
+━━━━━━━━━━━━━━━━━━━━━━━━
+📅 *Today:* ${status.today}
+🗓️ *Exam Dates:* Jan 25, 2027 - Feb 1, 2027
+📢 *Status:* *${active.type === 'final' ? active.statusMessage : 'Final Exam starts Jan 25, 2027'}*
+
+📊 *Final Exam Progression:*
+${active.type === 'final' ? active.bar : 'Final progression activates after Mid-Term!'}
+• Exam Period: *Jan 25 – Feb 1, 2027*
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+💬 _Type *!routine* for calendar or *!help* for commands!_`;
+  }
+
+  // Default !countdown: ONLY SHOW CURRENT ACTIVE EXAM!
+  return `⏱️ *UIU Exam Countdown & Progression*
+🏛️ *${status.university || "United International University (UIU)"}*
+🗓️ *${status.trimester || "Fall 2026 Trimester"}* | 📅 ${status.today}
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 *Target:* ${active.title}
+📢 *Status:* *${active.statusMessage}*
+📅 *Exam Dates:* ${active.dates}
+
+📊 *Progression:*
+${active.bar}
+• Elapsed: *${active.elapsedDays}* of *${active.totalDays}* days (${active.percent}%)
+• Remaining: *${active.daysRemaining} days*
+
+${active.type === "mid" 
+  ? `💡 _Final Exam countdown will activate after Mid-Term is finished!_` 
+  : `💡 _Finish the trimester strong! Best of luck!_`}
+━━━━━━━━━━━━━━━━━━━━━━━━
+💬 _Commands: *!routine* | *!installments* | *!help*_`;
+}
+
+function formatScheduleUpdateNotice(status, changeSummary = "") {
+  const active = status.activeExam;
+
+  return `📢 *UIU ACADEMIC CALENDAR AUTO-UPDATE* 📢
+🏛️ *${status.university || "United International University (UIU)"}*
+🗓️ *${status.trimester || "Fall 2026 Trimester"}*
+━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ *Notice:* Academic dates have been updated in the bot!
+
+${changeSummary ? `📝 *Update Details:*\n${changeSummary}\n\n` : ""}📌 *Current Active Exam Countdown:*
+🎯 *Target:* ${active.title}
+📅 *Dates:* ${active.dates}
+📢 *Status:* *${active.statusMessage}*
+
+📊 *Progression:*
+${active.bar}
+• Remaining: *${active.daysRemaining} days*
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+✅ _All WhatsApp commands (!countdown, !routine) are auto-synced!_
+💬 _Reply *!countdown* anytime to check updated days!_`;
+}
+
+function formatCustomAnnouncement(title, message) {
+  return `📢 *UIU ANNOUNCEMENT: ${title.toUpperCase()}* 📢
+🏛️ *United International University (UIU)*
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+${message}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+💬 _UIU Exam Countdown Bot • Fall 2026_ 🎓`;
+}
+
+function formatRoutineReply(calendarData) {
+  const dates = (calendarData && calendarData.dates) || {};
+  const events = (calendarData && calendarData.events) || [];
+
+  const holidays = events.filter(e => e.type === "holiday").slice(0, 5);
+  const holidayLines = holidays.length > 0 
+    ? holidays.map(h => `• *${h.date}:* ${h.title}`).join("\n")
+    : "• No major upcoming holidays listed.";
+
+  return `📋 *UIU Fall 2026 Academic Calendar*
+🏛️ *United International University*
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎓 *Major Milestones:*
+• *${dates.classesBegin || "Oct 27, 2026"}:* Classes Begin
+• *${dates.midStart || "Dec 5, 2026"} – ${dates.midEnd || "Dec 12, 2026"}:* 🚨 *Mid-Term Exam*
+• *${dates.finalStart || "Jan 25, 2027"} – ${dates.finalEnd || "Feb 1, 2027"}:* 🏆 *Final Exam*
+• *Feb 9, 2027:* Spring 2027 Classes Begin
+
+💳 *Tuition Installment Deadlines:*
+• *Nov 22, 2026:* 1st Installment (40%)
+• *Dec 15, 2026:* 2nd Installment (70%)
+• *Jan 13, 2027:* 3rd Installment (100%)
+_(Tk. 500 fine per installment if unpaid)_
+
+🏖️ *Holidays & Class Suspensions:*
+${holidayLines}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+💬 _Type *!countdown* for live remaining days!_`;
+}
+
+function formatInstallmentsReply() {
+  return `💳 *UIU Fall 2026 Installment Schedule*
+🏛️ *United International University*
+━━━━━━━━━━━━━━━━━━━━━━━━
+1️⃣ *1st Installment (40% Tuition & Trimester Fee)*
+   📅 Deadline: *Nov 22, 2026* (Sunday)
+   ⚠️ Fine: Tk. 500/- after deadline
+
+2️⃣ *2nd Installment (70% Tuition & Trimester Fee)*
+   📅 Deadline: *Dec 15, 2026* (Tuesday)
+   ⚠️ Fine: Tk. 500/- after deadline
+
+3️⃣ *3rd Installment (100% Tuition & Trimester Fee)*
+   📅 Deadline: *Jan 13, 2027* (Wednesday)
+   ⚠️ Fine: Tk. 500/- after deadline
+
+📌 *Payment Guidelines:*
+• For 252+ batch: Tk. 20,000 paid at registration; 40% remainder due on 1st installment.
+• Transportation & Gym fees payable in installments (40%, 30%, 30%).
+━━━━━━━━━━━━━━━━━━━━━━━━
+💬 _Type *!countdown* for exam status!_`;
+}
+
+function formatHelpReply() {
+  return `🤖 *UIU Exam Countdown Bot - Commands*
+━━━━━━━━━━━━━━━━━━━━━━━━
+Here are the commands you can send me:
+
+⏱️ *!countdown*
+↳ Get live progression & remaining days for the current exam milestone!
+
+📘 *!mid*
+↳ View Mid-Term Exam details and dates.
+
+🏆 *!final*
+↳ View Final Exam details and dates.
+
+📋 *!routine*
+↳ View the full Fall 2026 Academic Calendar.
+
+💳 *!installments*
+↳ Check tuition fee installment dates and fines.
+
+💡 *!quote*
+↳ Get an instant motivational study quote!
+
+🔔 *!subscribe*
+↳ Subscribe to automatic morning (9 AM) and evening (7 PM) alerts!
+
+🔕 *!unsubscribe*
+↳ Unsubscribe from automated daily alerts.
+
+ℹ️ *!help*
+↳ Show this help menu.
+━━━━━━━━━━━━━━━━━━━━━━━━
+_Made for UIU Students • Auto-notifies at 9:00 AM & 7:00 PM_ 🎓`;
+}
+
+function formatWelcomeReply(status) {
+  const active = status.activeExam;
+  return `🎓 *Welcome to UIU Exam Countdown Bot!* 🤖
+🏛️ *${status.university || "United International University (UIU)"}*
+🗓️ *${status.trimester || "Fall 2026 Trimester"}* | 📅 ${status.today}
+━━━━━━━━━━━━━━━━━━━━━━━━
+🎉 *আপনার সাবস্ক্রিপশন সফলভাবে সক্রিয় হয়েছে!*
+প্রতিদিন *সকাল ৯:০০ টা* এবং *রাত ৭:০০ টায়* আপনার এই হোয়াটসঅ্যাপে স্বয়ংক্রিয়ভাবে পরীক্ষার লাইভ কাউন্টডাউন ও রিভিশন নোটিফিকেশন পৌঁছে যাবে।
+
+⚡ _(আপনাকে আর কখনোই 'hi' লিখে বট চালু করতে হবে না। ব্যাকএন্ড আপডেট হলেও এই সাবস্ক্রিপশন সারাজীবন সক্রিয় থাকবে!)_
+
+⏳ *Current Target:* *${active.title}*
+📢 *Status:* *${active.statusMessage}*
+📅 *Exam Dates:* ${active.dates}
+
+📊 *Live Progression:*
+${active.bar}
+• ⏳ *${active.daysRemaining} days remaining* (${active.elapsedDays}/${active.totalDays} days passed)
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+📌 *যেকোনো সময় ব্যবহার করার কমান্ডসমূহ:*
+• *!countdown* - বর্তমান পরীক্ষার লাইভ দিন ও প্রগ্রেস
+• *!mid* - মিড-টার্ম পরীক্ষার তথ্য
+• *!final* - ফাইনাল পরীক্ষার তথ্য
+• *!routine* - ফুল অ্যাকাডেমিক ক্যালেন্ডার
+• *!installments* - ফি কিস্তির তারিখ ও জরিমানা
+• *!quote* - স্টাডি মোটিভেশন কোট
+• *!unsubscribe* - নোটিফিকেশন বন্ধ করতে
+━━━━━━━━━━━━━━━━━━━━━━━━
+_Made for UIU Students • 24/7 Automated Service_ 🎓`;
+}
+
+module.exports = {
+  formatDailyBroadcast,
+  formatCountdownReply,
+  formatScheduleUpdateNotice,
+  formatCustomAnnouncement,
+  formatRoutineReply,
+  formatInstallmentsReply,
+  formatHelpReply,
+  formatWelcomeReply
+};
+

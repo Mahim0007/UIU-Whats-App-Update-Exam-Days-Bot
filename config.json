@@ -1,0 +1,14 @@
+{
+  "botName": "UIU Exam Countdown Bot",
+  "university": "United International University (UIU)",
+  "trimester": "Fall 2026 Trimester",
+  "targetPhone": "self",
+  "morningScheduleTime": "09:00",
+  "eveningScheduleTime": "19:00",
+  "enableMorningNotification": true,
+  "enableEveningNotification": true,
+  "enableDailyNotification": true,
+  "autoBroadcastOnUpdate": true,
+  "webPort": 3000,
+  "includeMotivationalQuotes": true
+}
