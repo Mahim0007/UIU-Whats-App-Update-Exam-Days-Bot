@@ -1338,119 +1338,6 @@
       </div>
     </section>
 
-    <!-- 💬 LIVE INTERACTIVE WEB CHAT BOX & INSTANT BOT AUTO-REPLY -->
-    <section class="web-chat-showcase-section">
-      <!-- 1. Interactive Message Box (WhatsApp Web Dark Theme) -->
-      <div class="web-chat-card">
-        <!-- Chat Header -->
-        <div class="web-chat-header">
-          <div class="chat-header-user">
-            <div class="chat-avatar">🎓</div>
-            <div>
-              <div class="chat-title">UIU Exam Countdown Bot</div>
-              <div class="chat-subtitle">
-                <span class="online-indicator"></span> Online • Instant Exam Auto-Reply
-              </div>
-            </div>
-          </div>
-          <div class="chat-header-actions">
-            <button type="button" id="btnClearChat" class="btn-clear-chat" title="Clear chat history">🧹 Clear</button>
-          </div>
-        </div>
-
-        <!-- Chat Feed -->
-        <div class="web-chat-feed" id="chatFeed">
-          <!-- Initial Bot Welcome Message -->
-          <div class="chat-msg msg-bot">
-            <div class="msg-bubble">
-              <div class="msg-sender">🎓 UIU Exam Countdown Bot</div>
-              <div class="msg-text">Hello! 👋 আমি UIU Exam Countdown Bot।
-
-এখানে যেকোনো মেসেজ বা 'Hi' লিখে পাঠালে তাৎক্ষণিক পরীক্ষার কাউন্টডাউন, কিস্তি ও রুটিন দেখতে পাবেন।
-
-নিচের কুইক বাটনগুলোতে ক্লিক করতে পারেন:</div>
-              <div class="msg-time">Online</div>
-            </div>
-          </div>
-
-          <!-- Quick Suggestion Chips -->
-          <div class="chat-quick-chips" id="chatQuickChips">
-            <button type="button" class="chip-btn" data-query="hi">💬 Hi</button>
-            <button type="button" class="chip-btn" data-query="mid">📘 Mid-Term</button>
-            <button type="button" class="chip-btn" data-query="final">🏆 Final Exam</button>
-            <button type="button" class="chip-btn" data-query="installment">💳 Installments</button>
-            <button type="button" class="chip-btn" data-query="routine">📅 Full Routine</button>
-          </div>
-
-          <!-- Typing Indicator (hidden initially) -->
-          <div class="chat-typing-indicator" id="chatTypingIndicator" style="display: none;">
-            <span class="typing-text">UIU Bot is typing</span>
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
-          </div>
-        </div>
-
-        <!-- Chat Input Bar -->
-        <form class="web-chat-input-bar" id="webChatForm">
-          <input 
-            type="text" 
-            id="webChatInput" 
-            placeholder="মেসেজ লিখুন (যেমন: hi, mid, final, routine, installment)..." 
-            autocomplete="off" 
-          />
-          <button type="submit" id="btnWebChatSend" class="btn-chat-send">
-            <span>Send</span>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-            </svg>
-          </button>
-        </form>
-      </div>
-
-      <!-- 2. Right Side Panel: Unlink WhatsApp Account & Mobile Scan Option -->
-      <div class="web-chat-side-panel">
-        <!-- Personal WhatsApp Protection & Unlink Card -->
-        <div class="side-card privacy-card">
-          <div class="side-card-badge">🔒 WhatsApp Privacy & Safety</div>
-          <h3>পার্সোনাল ইনবক্স আনলিঙ্ক</h3>
-          <p class="side-card-desc">
-            ভুলে যদি পূর্বে কিউআর কোড স্ক্যান করে নিজের পার্সোনাল হোয়াটসঅ্যাপ কানেক্ট করে থাকেন, তবে নিচের বাটনে ক্লিক করে সাথে সাথে অ্যাকাউন্টটি ডিসকানেক্ট করে নিন।
-          </p>
-          <button type="button" id="btnUnlinkPersonalWa" class="btn-danger-unlink">
-            🚫 Unlink Personal WhatsApp
-          </button>
-          <div class="side-note">
-            💡 <b>ওয়েবসাইট চ্যাট বক্স ১০০% মুক্ত:</b> ওয়েবসাইটের এই চ্যাট বক্সে যে কেউ 'hi' লিখে বা কথা বলে সকল পরীক্ষার তারিখ দেখতে পারবে, এর জন্য কোনো ফোন বা হোয়াটসঅ্যাপ কানেক্ট করার দরকার নেই!
-          </div>
-        </div>
-
-        <!-- Dedicated Mobile/PC WhatsApp Direct Link Card -->
-        <div class="side-card mobile-wa-card">
-          <div class="side-card-badge wa-badge">📱 WhatsApp (Mobile & PC)</div>
-          <h4>সরাসরি WhatsApp-এ চ্যাট</h4>
-          <p class="side-card-desc">
-            মোবাইল বা পিসির WhatsApp থেকে বটের সাথে চ্যাট করে অটো-আপডেট পেতে নিচের বাটনে ক্লিক করুন বা QR স্ক্যান করুন:
-          </p>
-          <div style="display: flex; gap: 0.6rem; align-items: center;">
-            <a id="heroWaBtn" href="#qrSection" class="btn-wa-compact">
-              💬 Open in WhatsApp
-            </a>
-            <button type="button" id="btnHeroCopyLink" class="btn-copy-clean" style="padding: 0.65rem 0.9rem;">📋 Copy Link</button>
-          </div>
-          <input type="hidden" id="heroWaLinkInput" value="">
-          
-          <div id="heroChatQrWrap" class="side-qr-preview" style="display: none;">
-            <img id="heroChatQrImg" src="" alt="Scan to open WhatsApp" />
-            <div>
-              <div style="font-weight: 700; color: #fff; font-size: 0.82rem;">Scan with Phone Camera</div>
-              <span>ফোনের ক্যামেরা দিয়ে স্ক্যান করলেই সরাসরি আপনার WhatsApp অ্যাপ ওপেন হয়ে যাবে।</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Smart Progression Section: Single Active Progression & Trimester Roadmap -->
     <section class="dual-progression-grid">
       <!-- 1. Live Active Exam Progression Card -->
@@ -1925,28 +1812,15 @@
       }
 
       // 5. Update WhatsApp Chat Link Everywhere
-      const heroBtn = document.getElementById('heroWaBtn');
       const headBtn = document.getElementById('headerWaBtn');
-      const linkInp = document.getElementById('heroWaLinkInput');
       const shareInput = document.getElementById('waShareUrl');
-      const qrWrap = document.getElementById('heroChatQrWrap');
-      const qrImg = document.getElementById('heroChatQrImg');
 
       if (bot.waLink) {
-        if (heroBtn) { heroBtn.href = bot.waLink; heroBtn.target = '_blank'; heroBtn.rel = 'noopener'; }
         if (headBtn) { headBtn.href = bot.waLink; headBtn.target = '_blank'; headBtn.rel = 'noopener'; }
-        if (linkInp) linkInp.value = bot.waLink;
         if (shareInput) shareInput.value = bot.waLink;
-        if (qrWrap) qrWrap.style.display = 'flex';
-        if (qrImg && !qrImg.src.includes('/qr/chat')) {
-          qrImg.src = '/qr/chat?t=' + Date.now();
-        }
       } else {
-        if (heroBtn) { heroBtn.href = '#qrSection'; heroBtn.removeAttribute('target'); }
         if (headBtn) { headBtn.href = '#qrSection'; headBtn.removeAttribute('target'); }
-        if (linkInp) linkInp.value = '';
         if (shareInput) shareInput.value = 'Connect WhatsApp first (Scan QR)...';
-        if (qrWrap) qrWrap.style.display = 'none';
       }
 
       // 6. Connection Status Display
@@ -2256,15 +2130,6 @@
       }
     }
 
-    // Copy WhatsApp Share Link (Hero Card)
-    document.getElementById('btnHeroCopyLink')?.addEventListener('click', () => {
-      const input = document.getElementById('heroWaLinkInput');
-      if (input && input.value) {
-        navigator.clipboard.writeText(input.value);
-        showToast('📋 WhatsApp লিংক কপি হয়েছে! বন্ধুদের সাথে মেসেঞ্জার বা ফেসবুকে শেয়ার করুন।');
-      }
-    });
-
     // Copy WhatsApp Share Link (Admin Box)
     document.getElementById('btnCopyWaLink')?.addEventListener('click', () => {
       const input = document.getElementById('waShareUrl');
@@ -2282,135 +2147,6 @@
       toast.style.display = 'block';
       setTimeout(() => { toast.style.display = 'none'; }, 3500);
     }
-
-
-    // ========================================================
-    // INTERACTIVE WEB CHAT BOX & INSTANT BOT AUTO-REPLY
-    // ========================================================
-    const chatFeed = document.getElementById('chatFeed');
-    const webChatForm = document.getElementById('webChatForm');
-    const webChatInput = document.getElementById('webChatInput');
-    const chatTypingIndicator = document.getElementById('chatTypingIndicator');
-    const btnClearChat = document.getElementById('btnClearChat');
-
-    function appendMessage(sender, text, isUser = false) {
-      if (!chatFeed) return;
-      const msgDiv = document.createElement('div');
-      msgDiv.className = `chat-msg ${isUser ? 'msg-user' : 'msg-bot'}`;
-
-      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      let inner = `
-        <div class="msg-bubble">
-          ${!isUser ? `<div class="msg-sender">${escapeHtml(sender)}</div>` : ''}
-          <div class="msg-text">${escapeHtml(text)}</div>
-          <div class="msg-time">${now} ${isUser ? '✓✓' : ''}</div>
-        </div>
-      `;
-      msgDiv.innerHTML = inner;
-
-      if (chatTypingIndicator && chatFeed.contains(chatTypingIndicator)) {
-        chatFeed.insertBefore(msgDiv, chatTypingIndicator);
-      } else {
-        chatFeed.appendChild(msgDiv);
-      }
-      chatFeed.scrollTop = chatFeed.scrollHeight;
-    }
-
-    function escapeHtml(str) {
-      return (str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-
-    async function sendChatMessage(messageText) {
-      const text = (messageText || '').trim();
-      if (!text) return;
-
-      appendMessage('You', text, true);
-      if (webChatInput) webChatInput.value = '';
-
-      if (chatTypingIndicator) {
-        chatTypingIndicator.style.display = 'flex';
-      }
-      if (chatFeed) chatFeed.scrollTop = chatFeed.scrollHeight;
-
-      try {
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
-        });
-        const data = await res.json();
-
-        if (chatTypingIndicator) {
-          chatTypingIndicator.style.display = 'none';
-        }
-
-        if (data.success && data.reply) {
-          appendMessage(data.sender || 'UIU Bot', data.reply, false);
-        } else {
-          appendMessage('UIU Bot', '⚠️ সাময়িক সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।', false);
-        }
-      } catch (err) {
-        if (chatTypingIndicator) {
-          chatTypingIndicator.style.display = 'none';
-        }
-        appendMessage('UIU Bot', '⚠️ সার্ভারের সাথে সংযোগ বিচ্ছিন্ন। নেটওয়ার্ক চেক করুন।', false);
-      }
-    }
-
-    webChatForm?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (webChatInput) {
-        sendChatMessage(webChatInput.value);
-      }
-    });
-
-    // Quick suggestion chips
-    document.querySelectorAll('.chip-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const query = btn.getAttribute('data-query');
-        sendChatMessage(query);
-      });
-    });
-
-    // Clear Chat
-    btnClearChat?.addEventListener('click', () => {
-      if (!chatFeed) return;
-      const msgs = chatFeed.querySelectorAll('.chat-msg');
-      msgs.forEach(m => m.remove());
-      appendMessage('🎓 UIU Exam Countdown Bot', 'চ্যাট হিস্ট্রি ক্লিয়ার করা হয়েছে। নতুন বার্তা পাঠাতে নিচে "Hi" লিখুন বা বাটন ক্লিক করুন।', false);
-    });
-
-    // Unlink Personal WhatsApp Button
-    document.getElementById('btnUnlinkPersonalWa')?.addEventListener('click', async () => {
-      const ok = confirm('আপনি কি আপনার পার্সোনাল হোয়াটসঅ্যাপ অ্যাকাউন্টটি ডিসকানেক্ট / আনলিঙ্ক করতে চান?\\n\\nএটি করলে আপনার হোয়াটসঅ্যাপ আর এই বটের সাথে কানেক্টেড থাকবে না। তবে ওয়েবসাইট চ্যাট বক্স স্বাভাবিকভাবেই কাজ করবে।');
-      if (!ok) return;
-
-      const btn = document.getElementById('btnUnlinkPersonalWa');
-      btn.disabled = true;
-      btn.textContent = '⏳ Unlinking WhatsApp...';
-
-      try {
-        const res = await fetch('/api/unlink-whatsapp', { method: 'POST' });
-        const result = await res.json();
-        if (result.success) {
-          showToast('✅ আপনার পার্সোনাল হোয়াটসঅ্যাপ সফলভাবে ডিসকানেক্ট করা হয়েছে!');
-          fetchStatus();
-        } else {
-          showToast('⚠️ ' + (result.error || 'Failed to unlink'));
-        }
-      } catch (err) {
-        showToast('❌ Unlink request error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '🚫 Unlink Personal WhatsApp';
-      }
-    });
 
     // Live Polling
     fetchStatus();
