@@ -521,6 +521,14 @@ async function startSession(sessionId = "default", { isTemporary = false } = {})
   sessionSock.ev.on("creds.update", async () => {
     try {
       await saveCreds();
+      // Once QR is scanned, creds.me is populated before WhatsApp sends 515 restartRequired
+      if (state.creds?.me) {
+        sessionObj.isTemporary = false;
+        if (sessionObj.expireTimer) {
+          clearTimeout(sessionObj.expireTimer);
+          sessionObj.expireTimer = null;
+        }
+      }
       if (!sessionObj.isTemporary || sessionObj.status === "connected") {
         await syncSessionAuthToDb(sessionId, authDir);
       }
@@ -596,22 +604,28 @@ async function startSession(sessionId = "default", { isTemporary = false } = {})
     if (connection === "close") {
       sessionObj.status = "disconnected";
       const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const isRestartRequired = statusCode === DisconnectReason.restartRequired || statusCode === 515;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
       addLog(`⚠️ Session ${sessionId} closed (${statusCode || "unknown"}). Reconnecting: ${shouldReconnect}`);
 
-      if (sessionObj.isTemporary) {
+      // After QR scan, WhatsApp always sends 515 (restartRequired) before opening the session — must reconnect!
+      if (sessionObj.isTemporary && !isRestartRequired) {
         await cleanupSession(sessionId, { clearDb: false });
         return;
       }
 
       if (shouldReconnect) {
+        if (isRestartRequired) {
+          sessionObj.isTemporary = false;
+          sessionObj.status = "connecting";
+        }
         if (!sessionObj.isReconnecting) {
           sessionObj.isReconnecting = true;
           sessionObj.reconnectTimer = setTimeout(() => {
             sessionObj.isReconnecting = false;
             startSession(sessionId, { isTemporary: false });
-          }, 4000);
+          }, isRestartRequired ? 1000 : 4000);
         }
       } else {
         await cleanupSession(sessionId, { clearDb: true });
