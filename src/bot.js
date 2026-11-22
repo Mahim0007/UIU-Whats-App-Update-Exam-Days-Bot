@@ -186,6 +186,26 @@ let scheduledTasks = [];
 let qrPrintedInTerminal = false;
 let isReconnecting = false;
 let reconnectTimer = null;
+const botSentIds = new Set();
+
+function trackSentMessage(sent) {
+  const id = sent?.key?.id;
+  if (!id) return;
+  botSentIds.add(id);
+  if (botSentIds.size > 200) {
+    const first = botSentIds.values().next().value;
+    botSentIds.delete(first);
+  }
+}
+
+function isSelfJid(remoteJid) {
+  if (!remoteJid || !sock?.user?.id) return false;
+  if (remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) return false;
+  const senderId = remoteJid.split(":")[0].split("@")[0];
+  const ownerPhone = sock.user.id.split(":")[0].split("@")[0];
+  const ownerLid = sock.user.lid ? sock.user.lid.split(":")[0].split("@")[0] : null;
+  return senderId === ownerPhone || (ownerLid && senderId === ownerLid);
+}
 
 /**
  * Sync and merge subscribers directly from PostgreSQL database.
@@ -248,50 +268,32 @@ async function broadcastToSubscribers(messageText, options = {}) {
     return { success: false, error: safetyCheck.reason };
   }
 
-  // Always sync fresh subscribers from PostgreSQL database
-  const subscribers = await syncSubscribersFromDatabase();
-  if (subscribers.length === 0) {
-    addLog("⚠️ No subscribers found in list.");
-    return { success: false, error: "No subscribers" };
+  // Strict Self-Only Mode: ONLY send updates to the owner's own WhatsApp number (never to other users or public groups)
+  const selfJid = sock.user?.id ? `${sock.user.id.split(":")[0].split("@")[0]}@s.whatsapp.net` : null;
+  if (!selfJid) {
+    addLog("❌ Cannot broadcast: Owner WhatsApp JID not ready.");
+    return { success: false, error: "Owner WhatsApp JID not available" };
   }
 
-  addLog(`📢 Starting broadcast to ${subscribers.length} WhatsApp subscriber(s)...`);
+  addLog(`📢 Sending update to your own WhatsApp (${selfJid})...`);
 
   let deliveredCount = 0;
   let failedCount = 0;
-  const selfJid = sock.user?.id ? `${sock.user.id.split(":")[0]}@s.whatsapp.net` : null;
 
-  for (const sub of subscribers) {
-    let targetJid = sub.jid;
-    if (targetJid === "self") {
-      if (!selfJid) {
+  // Resilient retry (2 attempts)
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const sent = await sock.sendMessage(selfJid, { text: messageText });
+      trackSentMessage(sent);
+      deliveredCount++;
+      break;
+    } catch (err) {
+      if (attempt === 2) {
+        addLog(`❌ Failed sending to self (${selfJid}): ${err.message}`);
         failedCount++;
-        continue;
+      } else {
+        await new Promise(res => setTimeout(res, 400));
       }
-      targetJid = selfJid;
-    }
-
-    let sent = false;
-    // Resilient per-subscriber retry (2 attempts) so network blips during updates don't drop messages
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        await sock.sendMessage(targetJid, { text: messageText });
-        deliveredCount++;
-        sent = true;
-        break;
-      } catch (err) {
-        if (attempt === 2) {
-          addLog(`❌ Failed sending to ${sub.name || sub.jid}: ${err.message}`);
-          failedCount++;
-        } else {
-          await new Promise(res => setTimeout(res, 400));
-        }
-      }
-    }
-
-    if (sent) {
-      // Safe delay between deliveries (300ms) to avoid spam triggers
-      await new Promise(res => setTimeout(res, 300));
     }
   }
 
@@ -300,18 +302,18 @@ async function broadcastToSubscribers(messageText, options = {}) {
     time: new Date().toLocaleString(),
     deliveredCount,
     failedCount,
-    totalSubscribers: subscribers.length,
+    totalSubscribers: 1,
     phase: status.phase,
     midRemaining: status.midProgress.remainingDays,
     finalRemaining: status.finalProgress.remainingDays
   };
 
-  addLog(`✅ Broadcast complete! Delivered: ${deliveredCount}, Failed: ${failedCount}`);
+  addLog(`✅ Self-update complete! Delivered: ${deliveredCount}, Failed: ${failedCount}`);
   return {
     success: deliveredCount > 0,
     deliveredCount,
     failedCount,
-    totalSubscribers: subscribers.length
+    totalSubscribers: 1
   };
 }
 
@@ -570,34 +572,24 @@ async function startWhatsAppBot() {
     }
   });
 
-  // Incoming Messages Handler
+  // Incoming Messages Handler (STRICT SELF-ONLY MODE: never replies to groups or other people)
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify") return;
 
     for (const msg of messages) {
       if (!msg.message) continue;
-      
-      // CRITICAL: Ignore messages sent by the bot/linked account to avoid infinite echo loops
-      if (msg.key.fromMe) continue;
+
+      // Prevent infinite echo loop on messages sent by this bot
+      if (botSentIds.has(msg.key.id)) continue;
 
       const remoteJid = msg.key.remoteJid;
-      if (!remoteJid || remoteJid.includes("@broadcast")) continue;
+      // Ignore all groups (@g.us), broadcasts, and anyone other than your own number
+      if (!isSelfJid(remoteJid)) continue;
 
-      // Security: Rate Limiting & Anti-Flood Protection per User
+      // Security: Rate Limiting
       const rateCheck = checkUserRateLimit(remoteJid);
-      if (!rateCheck.allowed) {
-        if (rateCheck.isFirstWarning) {
-          addLog(`⚠️ Rate limit triggered for ${remoteJid} (Spam prevention)`);
-          try {
-            await sock.sendMessage(remoteJid, {
-              text: "⚠️ *Slow down!* Please wait a few seconds before sending another message to prevent spamming."
-            }, { quoted: msg });
-          } catch (e) {}
-        }
-        continue;
-      }
+      if (!rateCheck.allowed) continue;
 
-      // Extract and sanitize text content (Anti-Injection & Buffer-Overflow Guard)
       const rawText = (
         msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
@@ -607,68 +599,28 @@ async function startWhatsAppBot() {
       const text = sanitizeInput(rawText, 500);
       if (!text) continue;
 
-      const isGroup = remoteJid.endsWith("@g.us");
-      const senderName = msg.pushName || "Student";
-      const senderPhone = remoteJid.replace(/[^0-9]/g, "");
-
-      const cleanSenderName = sanitizeInput(senderName, 100);
-      const cleanSenderPhone = sanitizeInput(senderPhone, 50);
-
-      // Auto-register sender in subscriber store & PostgreSQL database
-      addSubscriber(remoteJid, cleanSenderName, cleanSenderPhone);
-      recordUser(remoteJid, cleanSenderName, cleanSenderPhone, isGroup ? "group" : "individual");
-
-      // Log interaction in PostgreSQL database
-      recordInteraction(remoteJid, cleanSenderName, cleanSenderPhone, text);
-
       const lower = text.toLowerCase();
+      addLog(`📩 Self-chat command received: "${text}"`);
 
-      addLog(`📩 Message from ${remoteJid} (${cleanSenderName}): "${text}"`);
-
-      // 1. OPTIONAL: UNSUBSCRIBE / STOP
-      if (
-        lower === "!unsubscribe" ||
-        lower === "unsubscribe" ||
-        lower === "stop" ||
-        lower === "!stop" ||
-        lower === "unsub"
-      ) {
-        removeSubscriber(remoteJid);
-        updateUserStatus(remoteJid, "unsubscribed");
-        const reply = `🔕 *Unsubscribed / আনসাবস্ক্রাইব করা হয়েছে!*\n\nআপনাকে দৈনিক স্বয়ংক্রিয় অ্যালার্ট থেকে বাদ দেওয়া হয়েছে।\nপুনরায় চালু করতে চাইলে যেকোনো সময় শুধু 'hi' লিখে মেসেজ পাঠালেই আবার সক্রিয় হয়ে যাবে।`;
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`🔕 Unsubscribed: ${remoteJid}`);
+      const status = getCountdownStatus();
+      let reply = "";
+      if (lower === "!test" || lower === "test") {
+        reply = formatDailyBroadcast(status);
+      } else if (lower.includes("routine") || lower.includes("calendar")) {
+        reply = formatRoutineReply(loadCalendarData());
+      } else if (lower.includes("installment") || lower.includes("fee") || lower.includes("kisti")) {
+        reply = formatInstallmentsReply(status);
+      } else if (lower.includes("mid")) {
+        reply = formatCountdownReply(status, "mid");
+      } else if (lower.includes("final")) {
+        reply = formatCountdownReply(status, "final");
+      } else {
+        reply = formatWelcomeReply(status);
       }
 
-      // 2. ADMIN BROADCAST TEST (Optional)
-      else if (lower === "!test" || lower === "test") {
-        const status = getCountdownStatus();
-        const reply = formatDailyBroadcast(status);
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`💬 Sent sample broadcast test to ${remoteJid}`);
-      }
-
-      // 3. ZERO-COMMAND WORKFLOW: ANY MESSAGE (HI / HELLO / KEYWORD)
-      // Automatically subscribes the user permanently & replies directly in WhatsApp!
-      else {
-        addSubscriber(remoteJid, cleanSenderName, cleanSenderPhone);
-        updateUserStatus(remoteJid, "subscribed");
-        const status = getCountdownStatus();
-        let reply = "";
-        if (lower.includes("routine") || lower.includes("calendar")) {
-          reply = formatRoutineReply(loadCalendarData());
-        } else if (lower.includes("installment") || lower.includes("fee") || lower.includes("kisti")) {
-          reply = formatInstallmentsReply(status);
-        } else if (lower.includes("mid")) {
-          reply = formatCountdownReply(status, "mid");
-        } else if (lower.includes("final")) {
-          reply = formatCountdownReply(status, "final");
-        } else {
-          reply = formatWelcomeReply(status);
-        }
-        await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`👋 WhatsApp reply sent for "${text}" & auto-subscribed ${remoteJid}`);
-      }
+      const sent = await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
+      trackSentMessage(sent);
+      addLog(`✅ Replied in your own WhatsApp chat for "${text}"`);
     }
   });
 
