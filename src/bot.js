@@ -30,6 +30,10 @@ const {
   getActiveSubscribers,
   getDatabaseMetrics,
   getRecentLogs,
+  listSavedSessionIds,
+  restoreSessionAuthFromDb,
+  syncSessionAuthToDb,
+  clearSessionAuthFromDb,
   restoreAuthFromDb,
   syncAllAuthFilesToDb,
   clearAuthFromDb
@@ -181,101 +185,119 @@ function removeSubscriber(jid) {
   return true;
 }
 
-let sock = null;
+// shortcut: in-memory multi-session map; Render free tier (512MB RAM) supports ~15-20 concurrent Baileys sockets before needing a larger plan.
+const sessions = new Map();
+const SESSIONS_ROOT_DIR = path.join(__dirname, "../auth_info_sessions");
 let scheduledTasks = [];
 let qrPrintedInTerminal = false;
-let isReconnecting = false;
-let reconnectTimer = null;
 const botSentIds = new Set();
 
 function trackSentMessage(sent) {
   const id = sent?.key?.id;
   if (!id) return;
   botSentIds.add(id);
-  if (botSentIds.size > 200) {
+  if (botSentIds.size > 400) {
     const first = botSentIds.values().next().value;
     botSentIds.delete(first);
   }
 }
 
-function isSelfJid(remoteJid) {
-  if (!remoteJid || !sock?.user?.id) return false;
+function isSessionSelfJid(sessionSock, remoteJid) {
+  if (!remoteJid || !sessionSock?.user?.id) return false;
   if (remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) return false;
   const senderId = remoteJid.split(":")[0].split("@")[0];
-  const ownerPhone = sock.user.id.split(":")[0].split("@")[0];
-  const ownerLid = sock.user.lid ? sock.user.lid.split(":")[0].split("@")[0] : null;
+  const ownerPhone = sessionSock.user.id.split(":")[0].split("@")[0];
+  const ownerLid = sessionSock.user.lid ? sessionSock.user.lid.split(":")[0].split("@")[0] : null;
   return senderId === ownerPhone || (ownerLid && senderId === ownerLid);
 }
 
-/**
- * Sync and merge subscribers directly from PostgreSQL database.
- * Guarantees that even across restarts or code updates, every subscriber persists for life!
- */
-async function syncSubscribersFromDatabase() {
-  const selfOnly = [
-    {
-      jid: "self",
-      name: "Admin (Self)",
-      phone: "self",
+function getConnectedSessions() {
+  return Array.from(sessions.values()).filter(s => s.sock && s.status === "connected" && s.userInfo?.phone);
+}
+
+function refreshBotState() {
+  const connected = getConnectedSessions();
+  const def = sessions.get("default");
+
+  if (connected.length > 0) {
+    botState.status = "connected";
+    botState.userInfo = connected[0].userInfo;
+    botState.qrDataUrl = null;
+    botState.qrRaw = null;
+    botState.subscribers = connected.map(s => ({
+      jid: `${s.userInfo.phone}@s.whatsapp.net`,
+      name: s.userInfo.name || "UIU Student",
+      phone: s.userInfo.phone,
       type: "self",
-      subscribedAt: new Date().toISOString()
-    }
-  ];
-  saveSubscribers(selfOnly);
-  botState.subscribers = selfOnly;
-  return selfOnly;
+      subscribedAt: s.connectedAt || new Date().toISOString()
+    }));
+  } else if (def && def.status === "qr_ready") {
+    botState.status = "qr_ready";
+    botState.qrDataUrl = def.qrDataUrl;
+    botState.userInfo = null;
+  } else {
+    botState.status = def ? def.status : "disconnected";
+    botState.userInfo = null;
+  }
+}
+
+async function syncSubscribersFromDatabase() {
+  refreshBotState();
+  return botState.subscribers;
 }
 
 // ==========================================
-// BROADCAST TO ALL SUBSCRIBERS
+// BROADCAST TO ALL CONNECTED USERS (STRICT SELF-ONLY PER SESSION)
 // ==========================================
 async function broadcastToSubscribers(messageText, options = {}) {
-  if ((!sock || botState.status !== "connected") && isReconnecting) {
+  let connected = getConnectedSessions();
+  const anyReconnecting = Array.from(sessions.values()).some(s => s.isReconnecting);
+  if (connected.length === 0 && anyReconnecting) {
     addLog("⏳ WhatsApp socket reconnecting... waiting up to 10 seconds before broadcasting...");
     for (let i = 0; i < 10; i++) {
       await new Promise(r => setTimeout(r, 1000));
-      if (sock && botState.status === "connected") break;
+      connected = getConnectedSessions();
+      if (connected.length > 0) break;
     }
   }
 
-  if (!sock || botState.status !== "connected") {
-    addLog("❌ Cannot broadcast: WhatsApp bot is not connected.");
+  if (connected.length === 0) {
+    addLog("❌ Cannot broadcast: No WhatsApp users connected.");
     return { success: false, error: "Not connected to WhatsApp" };
   }
 
-  // Strict Security Safety Check: Prevent broadcasting unethical/malicious content
   const safetyCheck = validateNoticeContent("Broadcast", messageText);
   if (!safetyCheck.safe) {
     addLog(`🚨 Blocked unsafe broadcast attempt: ${safetyCheck.reason}`);
     return { success: false, error: safetyCheck.reason };
   }
 
-  // Strict Self-Only Mode: ONLY send updates to the owner's own WhatsApp number (never to other users or public groups)
-  const selfJid = sock.user?.id ? `${sock.user.id.split(":")[0].split("@")[0]}@s.whatsapp.net` : null;
-  if (!selfJid) {
-    addLog("❌ Cannot broadcast: Owner WhatsApp JID not ready.");
-    return { success: false, error: "Owner WhatsApp JID not available" };
-  }
-
-  addLog(`📢 Sending update to your own WhatsApp (${selfJid})...`);
+  addLog(`📢 Sending self-only update to ${connected.length} connected WhatsApp user(s)...`);
 
   let deliveredCount = 0;
   let failedCount = 0;
 
-  // Resilient retry (2 attempts)
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const sent = await sock.sendMessage(selfJid, { text: messageText });
-      trackSentMessage(sent);
-      deliveredCount++;
-      break;
-    } catch (err) {
-      if (attempt === 2) {
-        addLog(`❌ Failed sending to self (${selfJid}): ${err.message}`);
-        failedCount++;
-      } else {
-        await new Promise(res => setTimeout(res, 400));
+  for (const s of connected) {
+    const selfJid = `${s.userInfo.phone}@s.whatsapp.net`;
+    let sentOk = false;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const sent = await s.sock.sendMessage(selfJid, { text: messageText });
+        trackSentMessage(sent);
+        deliveredCount++;
+        sentOk = true;
+        break;
+      } catch (err) {
+        if (attempt === 2) {
+          addLog(`❌ Failed sending to +${s.userInfo.phone}: ${err.message}`);
+          failedCount++;
+        } else {
+          await new Promise(res => setTimeout(res, 400));
+        }
       }
+    }
+    if (sentOk && connected.length > 1) {
+      await new Promise(res => setTimeout(res, 300));
     }
   }
 
@@ -284,18 +306,18 @@ async function broadcastToSubscribers(messageText, options = {}) {
     time: new Date().toLocaleString(),
     deliveredCount,
     failedCount,
-    totalSubscribers: 1,
+    totalSubscribers: connected.length,
     phase: status.phase,
     midRemaining: status.midProgress.remainingDays,
     finalRemaining: status.finalProgress.remainingDays
   };
 
-  addLog(`✅ Self-update complete! Delivered: ${deliveredCount}, Failed: ${failedCount}`);
+  addLog(`✅ Self-only update complete! Delivered: ${deliveredCount}/${connected.length}, Failed: ${failedCount}`);
   return {
     success: deliveredCount > 0,
     deliveredCount,
     failedCount,
-    totalSubscribers: 1
+    totalSubscribers: connected.length
   };
 }
 
@@ -407,34 +429,86 @@ function setupDailyScheduler() {
 }
 
 // ==========================================
-// MAIN WHATSAPP BOT INITIALIZATION
+// MULTI-SESSION WHATSAPP BOT MANAGER
 // ==========================================
-async function startWhatsAppBot() {
-  // 1. Clean up existing socket and listeners before starting
-  if (sock) {
-    try {
-      sock.ev.removeAllListeners();
-      sock.end(undefined);
-    } catch (e) { }
-    sock = null;
-  }
+function getSessionAuthDir(sessionId) {
+  if (sessionId === "default") return path.join(__dirname, "../auth_info");
+  return path.join(SESSIONS_ROOT_DIR, sessionId);
+}
 
-  const authDir = path.join(__dirname, "../auth_info");
-  await restoreAuthFromDb(authDir);
+async function cleanupSession(sessionId, { clearDb = false } = {}) {
+  const existing = sessions.get(sessionId);
+  if (existing) {
+    if (existing.reconnectTimer) clearTimeout(existing.reconnectTimer);
+    if (existing.expireTimer) clearTimeout(existing.expireTimer);
+    if (existing.sock) {
+      try {
+        existing.sock.ev.removeAllListeners();
+        existing.sock.end(undefined);
+      } catch (e) {}
+    }
+    sessions.delete(sessionId);
+  }
+  const authDir = getSessionAuthDir(sessionId);
+  try {
+    if (fs.existsSync(authDir)) fs.rmSync(authDir, { recursive: true, force: true });
+  } catch (e) {}
+  if (clearDb) {
+    await clearSessionAuthFromDb(sessionId);
+  }
+  refreshBotState();
+}
+
+async function startSession(sessionId = "default", { isTemporary = false } = {}) {
+  const prev = sessions.get(sessionId);
+  if (prev?.sock) {
+    try {
+      prev.sock.ev.removeAllListeners();
+      prev.sock.end(undefined);
+    } catch (e) {}
+  }
+  if (prev?.reconnectTimer) clearTimeout(prev.reconnectTimer);
+  if (prev?.expireTimer) clearTimeout(prev.expireTimer);
+
+  const authDir = getSessionAuthDir(sessionId);
+  if (!isTemporary) {
+    await restoreSessionAuthFromDb(sessionId, authDir);
+  }
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
   let version = [2, 3000, 1015901307];
   try {
     const fetched = await fetchLatestBaileysVersion();
     if (fetched && fetched.version) version = fetched.version;
-  } catch (e) {
-    // fallback
+  } catch (e) {}
+
+  const sessionObj = {
+    id: sessionId,
+    authDir,
+    sock: null,
+    status: "connecting",
+    qrDataUrl: null,
+    userInfo: null,
+    isReconnecting: false,
+    reconnectTimer: null,
+    expireTimer: null,
+    isTemporary,
+    connectedAt: null
+  };
+  sessions.set(sessionId, sessionObj);
+
+  if (isTemporary) {
+    // Auto-expire unscanned QR sessions after 2 minutes to protect server RAM
+    sessionObj.expireTimer = setTimeout(() => {
+      if (sessionObj.isTemporary && sessionObj.status !== "connected") {
+        cleanupSession(sessionId, { clearDb: false });
+      }
+    }, 2 * 60 * 1000);
   }
 
-  botState.status = "connecting";
-  addLog("🔄 Initializing WhatsApp Connection (Baileys)...");
+  addLog(`🔄 Initializing WhatsApp session (${sessionId})...`);
 
-  sock = makeWASocket({
+  const sessionSock = makeWASocket({
     version,
     logger: pino({ level: "silent" }),
     printQRInTerminal: false,
@@ -442,131 +516,124 @@ async function startWhatsAppBot() {
     browser: ["UIU Exam Bot", "Chrome", "1.0.0"],
     syncFullHistory: false
   });
+  sessionObj.sock = sessionSock;
 
-  sock.ev.on("creds.update", async () => {
+  sessionSock.ev.on("creds.update", async () => {
     try {
       await saveCreds();
-      await syncAllAuthFilesToDb(authDir);
+      if (!sessionObj.isTemporary || sessionObj.status === "connected") {
+        await syncSessionAuthToDb(sessionId, authDir);
+      }
     } catch (e) {
-      console.error("Auth sync error:", e.message);
+      console.error(`Auth sync error (${sessionId}):`, e.message);
     }
   });
 
-  sock.ev.on("connection.update", async (update) => {
+  sessionSock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      botState.status = "qr_ready";
-      botState.qrRaw = qr;
-
+      sessionObj.status = "qr_ready";
       try {
-        botState.qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
-        const qrPath = path.join(__dirname, "../qr.png");
-        await QRCode.toFile(qrPath, qr, { width: 400 });
+        sessionObj.qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+        if (sessionId === "default") {
+          const qrPath = path.join(__dirname, "../qr.png");
+          await QRCode.toFile(qrPath, qr, { width: 400 });
+        }
       } catch (err) {
         console.error("QR Code image generation error", err);
       }
 
-      // Display QR code in terminal ONLY ONCE (no spamming on 20s token refreshes)
-      if (!qrPrintedInTerminal) {
+      if (sessionId === "default" && !qrPrintedInTerminal) {
         console.log("\n" + "=".repeat(56));
         console.log("📲 SCAN THIS QR CODE WITH YOUR WHATSAPP TO LINK BOT:");
-        console.log("👉 Go to WhatsApp > Settings (or 3 dots) > Linked Devices");
-        console.log("👉 Tap 'Link a Device' and scan the QR code below");
-        console.log("⚠️ You only need to scan this ONCE. Session will be saved!");
-        console.log("=".repeat(56));
         qrcodeTerminal.generate(qr, { small: true });
-        console.log("=".repeat(56));
-        console.log("🌐 Visual Web Dashboard: http://localhost:3000");
         console.log("=".repeat(56) + "\n");
         qrPrintedInTerminal = true;
-        addLog("📲 QR Code displayed. Scan once from WhatsApp > Linked Devices.");
-      } else {
-        // Silently update background token without re-printing duplicate QR to terminal
-        addLog("🔄 QR token refreshed in background. Waiting for scan...");
       }
+      refreshBotState();
     }
 
     if (connection === "open") {
-      botState.status = "connected";
-      botState.qrDataUrl = null;
-      botState.qrRaw = null;
-      qrPrintedInTerminal = false;
-      isReconnecting = false;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
+      sessionObj.status = "connected";
+      sessionObj.qrDataUrl = null;
+      sessionObj.isTemporary = false;
+      sessionObj.isReconnecting = false;
+      sessionObj.connectedAt = new Date().toISOString();
+      if (sessionObj.expireTimer) {
+        clearTimeout(sessionObj.expireTimer);
+        sessionObj.expireTimer = null;
+      }
+      if (sessionObj.reconnectTimer) {
+        clearTimeout(sessionObj.reconnectTimer);
+        sessionObj.reconnectTimer = null;
       }
 
-      botState.userInfo = {
-        id: sock.user.id,
-        name: sock.user.name || "UIU Student",
-        phone: sock.user.id.split(":")[0].split("@")[0]
+      const phone = sessionSock.user.id.split(":")[0].split("@")[0];
+      sessionObj.userInfo = {
+        id: sessionSock.user.id,
+        name: sessionSock.user.name || "UIU Student",
+        phone
       };
 
-      // Sync lifetime subscribers directly from PostgreSQL
-      await syncSubscribersFromDatabase();
+      // Deduplicate: if this phone already had an older session, clean up the old one
+      for (const [otherId, other] of sessions.entries()) {
+        if (otherId !== sessionId && other.userInfo?.phone === phone) {
+          await cleanupSession(otherId, { clearDb: true });
+        }
+      }
 
-      console.log("\n🎉 ==================================================");
-      console.log(`✅ WHATSAPP BOT CONNECTED SUCCESSFULLY!`);
-      console.log(`👤 Logged in as: +${botState.userInfo.phone}`);
-      console.log(`👥 Lifetime Subscribers in PostgreSQL: ${botState.subscribers.length}`);
-      console.log(`🚀 Ready to deliver exam countdown alerts!`);
-      console.log("====================================================\n");
-      addLog(`✅ Connected as +${botState.userInfo.phone} (${botState.subscribers.length} active subscribers)`);
+      await syncSessionAuthToDb(sessionId, authDir);
+      refreshBotState();
 
-      // Setup daily morning and evening cron
-      setupDailyScheduler();
-
-      // Check and catch up any missed broadcast if bot was restarted during schedule window
+      addLog(`✅ Connected +${phone} (session: ${sessionId} | total connected: ${getConnectedSessions().length})`);
+      if (scheduledTasks.length === 0) {
+        setupDailyScheduler();
+      }
       checkAndSendMissedBroadcast();
     }
 
     if (connection === "close") {
-      botState.status = "disconnected";
+      sessionObj.status = "disconnected";
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-      addLog(`⚠️ Connection closed (${statusCode || "unknown"}). Reconnecting: ${shouldReconnect}`);
+      addLog(`⚠️ Session ${sessionId} closed (${statusCode || "unknown"}). Reconnecting: ${shouldReconnect}`);
+
+      if (sessionObj.isTemporary) {
+        await cleanupSession(sessionId, { clearDb: false });
+        return;
+      }
 
       if (shouldReconnect) {
-        if (!isReconnecting) {
-          isReconnecting = true;
-          if (reconnectTimer) clearTimeout(reconnectTimer);
-          reconnectTimer = setTimeout(() => {
-            isReconnecting = false;
-            startWhatsAppBot();
+        if (!sessionObj.isReconnecting) {
+          sessionObj.isReconnecting = true;
+          sessionObj.reconnectTimer = setTimeout(() => {
+            sessionObj.isReconnecting = false;
+            startSession(sessionId, { isTemporary: false });
           }, 4000);
         }
       } else {
-        qrPrintedInTerminal = false;
-        await clearAuthFromDb();
-        try {
-          if (fs.existsSync(authDir)) {
-            fs.rmSync(authDir, { recursive: true, force: true });
-          }
-        } catch (e) { }
-        addLog("❌ WhatsApp session ended or logged out. Generating new QR code in 3 seconds...");
-        setTimeout(() => {
-          startWhatsAppBot();
-        }, 3000);
+        await cleanupSession(sessionId, { clearDb: true });
+        if (sessionId === "default") {
+          qrPrintedInTerminal = false;
+          setTimeout(() => startSession("default"), 3000);
+        }
       }
+      refreshBotState();
     }
   });
 
-  // Incoming Messages Handler (STRICT SELF-ONLY MODE: never replies to groups or other people)
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+  // Strict Self-Only Mode per session: NEVER replies to public groups or other people
+  sessionSock.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify") return;
 
     for (const msg of messages) {
       if (!msg.message) continue;
-
-      // Prevent infinite echo loop on messages sent by this bot
       if (botSentIds.has(msg.key.id)) continue;
 
       const remoteJid = msg.key.remoteJid;
-      // Ignore all groups (@g.us), broadcasts, and anyone other than your own number (supports both @s.whatsapp.net and @lid)
-      if (!isSelfJid(remoteJid) && !isSelfJid(msg.key.remoteJidAlt)) continue;
+      if (!isSessionSelfJid(sessionSock, remoteJid) && !isSessionSelfJid(sessionSock, msg.key.remoteJidAlt)) continue;
 
       const rawText = (
         msg.message.conversation ||
@@ -575,15 +642,13 @@ async function startWhatsAppBot() {
       ).trim();
 
       const text = sanitizeInput(rawText, 500);
-      // Never reply to the bot's own messages/broadcasts (prevents self-chat echo loop before sendMessage promise resolves)
       if (!text || text.includes("UIU Exam Countdown Bot")) continue;
 
-      // Security: Rate Limiting
       const rateCheck = checkUserRateLimit(remoteJid);
       if (!rateCheck.allowed) continue;
 
       const lower = text.toLowerCase();
-      addLog(`📩 Self-chat command received: "${text}"`);
+      addLog(`📩 Self-chat command (${sessionId}): "${text}"`);
 
       const status = getCountdownStatus();
       let reply = "";
@@ -601,37 +666,74 @@ async function startWhatsAppBot() {
         reply = formatWelcomeReply(status);
       }
 
-      const sent = await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
+      const sent = await sessionSock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
       trackSentMessage(sent);
-      addLog(`✅ Replied in your own WhatsApp chat for "${text}"`);
+      addLog(`✅ Replied in self-chat (${sessionId}) for "${text}"`);
     }
   });
 
-  return sock;
+  return sessionSock;
+}
+
+function createPairingSession() {
+  // Cap pending unscanned QR sessions at 5 to avoid RAM spikes
+  const pending = Array.from(sessions.values()).filter(s => s.isTemporary && s.status !== "connected");
+  if (pending.length >= 5) {
+    cleanupSession(pending[0].id, { clearDb: false });
+  }
+  const sessionId = `u_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  startSession(sessionId, { isTemporary: true }).catch(err => {
+    addLog(`⚠️ Pairing session error (${sessionId}): ${err.message}`);
+  });
+  return sessionId;
+}
+
+function getSessionStatus(sessionId) {
+  const s = sessions.get(sessionId);
+  if (!s) return { exists: false, status: "expired", qrDataUrl: null, userInfo: null };
+  return {
+    exists: true,
+    status: s.status,
+    qrDataUrl: s.qrDataUrl,
+    userInfo: s.userInfo
+  };
+}
+
+async function startWhatsAppBot() {
+  setupDailyScheduler();
+  const dbIds = await listSavedSessionIds();
+  const localIds = [];
+  if (fs.existsSync(SESSIONS_ROOT_DIR)) {
+    for (const name of fs.readdirSync(SESSIONS_ROOT_DIR)) {
+      if (fs.statSync(path.join(SESSIONS_ROOT_DIR, name)).isDirectory()) {
+        localIds.push(name);
+      }
+    }
+  }
+
+  const allIds = Array.from(new Set([...dbIds, ...localIds]));
+  if (allIds.length === 0) {
+    return startSession("default");
+  }
+
+  for (const sid of allIds) {
+    await startSession(sid, { isTemporary: false });
+  }
+  return sessions.get(allIds[0])?.sock || null;
 }
 
 async function unlinkWhatsApp() {
-  if (sock) {
-    try {
-      sock.ev.removeAllListeners();
-      sock.end(undefined);
-    } catch (e) { }
-    sock = null;
+  for (const sid of Array.from(sessions.keys())) {
+    await cleanupSession(sid, { clearDb: true });
   }
-  botState.status = "disconnected";
-  botState.userInfo = null;
-  botState.qrDataUrl = null;
-  const authDir = path.join(__dirname, "../auth_info");
-  if (fs.existsSync(authDir)) {
-    try { fs.rmSync(authDir, { recursive: true, force: true }); } catch (e) { }
-  }
-  await clearAuthFromDb();
-  addLog("ℹ️ Personal WhatsApp account unlinked successfully.");
+  addLog("ℹ️ All linked WhatsApp sessions unlinked successfully.");
   return true;
 }
 
 module.exports = {
   startWhatsAppBot,
+  createPairingSession,
+  getSessionStatus,
   unlinkWhatsApp,
   broadcastToSubscribers,
   broadcastScheduleUpdate,

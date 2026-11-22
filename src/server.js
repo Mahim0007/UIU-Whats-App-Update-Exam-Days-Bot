@@ -4,6 +4,8 @@ const fs = require("fs");
 const {
   botState,
   startWhatsAppBot,
+  createPairingSession,
+  getSessionStatus,
   unlinkWhatsApp,
   broadcastToSubscribers,
   broadcastScheduleUpdate,
@@ -102,18 +104,27 @@ function startWebServer(port = 3000) {
     }
   });
 
-  // Minimal QR-only page: shows ONLY the QR code, nothing else, no link to main web
+  // Minimal QR-only page: EVERY visitor gets their own fresh QR code to connect (multi-user, nothing else shown)
   app.get("/qr-only", (req, res) => {
-    if (botState.status === "connected") {
+    const sid = typeof req.query.sid === "string" ? req.query.sid.replace(/[^a-zA-Z0-9_-]/g, "") : "";
+    if (!sid) {
+      const newSid = createPairingSession();
+      return res.redirect(`/qr-only?sid=${encodeURIComponent(newSid)}`);
+    }
+
+    const info = getSessionStatus(sid);
+    if (!info.exists) {
+      const newSid = createPairingSession();
+      return res.redirect(`/qr-only?sid=${encodeURIComponent(newSid)}`);
+    }
+
+    if (info.status === "connected") {
       return res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;color:#22c55e;font-family:system-ui,sans-serif;font-size:1.25rem;}</style></head><body>✅ Connected</body></html>`);
     }
-    if (botState.qrDataUrl) {
-      return res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="6"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;}img{background:#fff;padding:12px;border-radius:14px;width:280px;height:280px;}</style></head><body><img src="${botState.qrDataUrl}" alt="QR" /></body></html>`);
+    if (info.qrDataUrl) {
+      return res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="5"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;}img{background:#fff;padding:12px;border-radius:14px;width:280px;height:280px;}</style></head><body><img src="${info.qrDataUrl}" alt="QR" /></body></html>`);
     }
-    if (botState.status === "disconnected") {
-      try { startWhatsAppBot(); } catch (e) {}
-    }
-    res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="3"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;color:#94a3b8;font-family:system-ui,sans-serif;}</style></head><body>⏳ Loading QR...</body></html>`);
+    res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="2"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;color:#94a3b8;font-family:system-ui,sans-serif;}</style></head><body>⏳ Loading QR...</body></html>`);
   });
 
   // Dedicated Full-Screen QR Code page for bot WhatsApp login / device linking

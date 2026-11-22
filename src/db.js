@@ -290,65 +290,114 @@ async function getActiveSubscribers() {
 }
 
 /**
- * Restore WhatsApp Auth Session files from PostgreSQL to local folder
+ * List all saved WhatsApp session IDs in PostgreSQL
  */
-async function restoreAuthFromDb(authDir) {
+async function listSavedSessionIds() {
   try {
     await initDatabase();
-    const res = await pool.query("SELECT key, value FROM baileys_auth;");
+    const res = await pool.query("SELECT key FROM baileys_auth;");
+    const ids = new Set();
+    for (const row of res.rows || []) {
+      if (row.key.startsWith("session:")) {
+        const sid = row.key.slice("session:".length).split("/")[0];
+        if (sid) ids.add(sid);
+      } else if (row.key === "creds.json") {
+        ids.add("default");
+      }
+    }
+    return Array.from(ids);
+  } catch (err) {
+    console.error("⚠️ [Cloud Auth] Could not list sessions from DB:", err.message);
+    return [];
+  }
+}
+
+/**
+ * Restore a specific WhatsApp session's auth files from PostgreSQL
+ */
+async function restoreSessionAuthFromDb(sessionId, authDir) {
+  try {
+    await initDatabase();
+    const isDefault = sessionId === "default";
+    const prefix = `session:${sessionId}/`;
+    const res = isDefault
+      ? await pool.query("SELECT key, value FROM baileys_auth WHERE key NOT LIKE 'session:%';")
+      : await pool.query("SELECT key, value FROM baileys_auth WHERE key LIKE $1;", [`${prefix}%`]);
+
     if (res.rows && res.rows.length > 0) {
       if (!fs.existsSync(authDir)) {
         fs.mkdirSync(authDir, { recursive: true });
       }
       for (const row of res.rows) {
-        fs.writeFileSync(path.join(authDir, row.key), row.value, "utf8");
+        const filename = isDefault ? row.key : row.key.slice(prefix.length);
+        if (!filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) continue;
+        fs.writeFileSync(path.join(authDir, filename), row.value, "utf8");
       }
-      console.log(`📥 [Cloud Auth] Restored ${res.rows.length} session credentials from PostgreSQL database.`);
+      console.log(`📥 [Cloud Auth] Restored ${res.rows.length} files for session "${sessionId}".`);
       return true;
     }
   } catch (err) {
-    console.error("⚠️ [Cloud Auth] Could not restore session from DB:", err.message);
+    console.error(`⚠️ [Cloud Auth] Could not restore session "${sessionId}":`, err.message);
   }
   return false;
 }
 
 /**
- * Sync all files from local authDir to PostgreSQL database
+ * Sync a specific WhatsApp session's auth files to PostgreSQL
  */
-async function syncAllAuthFilesToDb(authDir) {
+async function syncSessionAuthToDb(sessionId, authDir) {
   try {
     if (!fs.existsSync(authDir)) return;
     await initDatabase();
+    const isDefault = sessionId === "default";
+    const prefix = `session:${sessionId}/`;
     const files = fs.readdirSync(authDir);
     for (const file of files) {
       if (!file.endsWith(".json")) continue;
       const filePath = path.join(authDir, file);
       try {
         const content = fs.readFileSync(filePath, "utf8");
+        const dbKey = isDefault ? file : `${prefix}${file}`;
         await pool.query(
           `INSERT INTO baileys_auth (key, value, updated_at) 
            VALUES ($1, $2, CURRENT_TIMESTAMP) 
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
-          [file, content]
+          [dbKey, content]
         );
       } catch (e) {}
     }
   } catch (err) {
-    console.error("⚠️ [Cloud Auth] Could not sync session to DB:", err.message);
+    console.error(`⚠️ [Cloud Auth] Could not sync session "${sessionId}":`, err.message);
   }
 }
 
 /**
- * Clear session from DB on explicit logout
+ * Clear a specific WhatsApp session from PostgreSQL
  */
-async function clearAuthFromDb() {
+async function clearSessionAuthFromDb(sessionId) {
   try {
     await initDatabase();
-    await pool.query("DELETE FROM baileys_auth;");
-    console.log("🧹 [Cloud Auth] Cleared session from PostgreSQL database.");
+    if (sessionId === "default") {
+      await pool.query("DELETE FROM baileys_auth WHERE key NOT LIKE 'session:%';");
+    } else {
+      await pool.query("DELETE FROM baileys_auth WHERE key LIKE $1;", [`session:${sessionId}/%`]);
+    }
+    console.log(`🧹 [Cloud Auth] Cleared session "${sessionId}" from PostgreSQL.`);
   } catch (err) {
-    console.error("⚠️ [Cloud Auth] Could not clear session from DB:", err.message);
+    console.error(`⚠️ [Cloud Auth] Could not clear session "${sessionId}":`, err.message);
   }
+}
+
+async function restoreAuthFromDb(authDir) {
+  return restoreSessionAuthFromDb("default", authDir);
+}
+
+async function syncAllAuthFilesToDb(authDir) {
+  return syncSessionAuthToDb("default", authDir);
+}
+
+async function clearAuthFromDb() {
+  return clearSessionAuthFromDb("default");
 }
 
 module.exports = {
@@ -361,6 +410,10 @@ module.exports = {
   getRecentLogs,
   getDatabaseMetrics,
   updateUserStatus,
+  listSavedSessionIds,
+  restoreSessionAuthFromDb,
+  syncSessionAuthToDb,
+  clearSessionAuthFromDb,
   restoreAuthFromDb,
   syncAllAuthFilesToDb,
   clearAuthFromDb

@@ -3,6 +3,7 @@ node_modules/
 
 # WhatsApp Session & Authentication Keys (CRITICAL)
 auth_info/
+auth_info_sessions/
 
 # Environment Variables
 .env
