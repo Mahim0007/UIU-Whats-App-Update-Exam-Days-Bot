@@ -228,6 +228,14 @@ async function syncSubscribersFromDatabase() {
 // BROADCAST TO ALL SUBSCRIBERS
 // ==========================================
 async function broadcastToSubscribers(messageText, options = {}) {
+  if ((!sock || botState.status !== "connected") && isReconnecting) {
+    addLog("⏳ WhatsApp socket reconnecting... waiting up to 10 seconds before broadcasting...");
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      if (sock && botState.status === "connected") break;
+    }
+  }
+
   if (!sock || botState.status !== "connected") {
     addLog("❌ Cannot broadcast: WhatsApp bot is not connected.");
     return { success: false, error: "Not connected to WhatsApp" };
@@ -248,20 +256,6 @@ async function broadcastToSubscribers(messageText, options = {}) {
   }
 
   addLog(`📢 Starting broadcast to ${subscribers.length} WhatsApp subscriber(s)...`);
-
-  // Resilient Connection Wait: If socket is momentarily reconnecting during an update, wait up to 10s
-  if (!sock || botState.status !== "connected") {
-    addLog("⏳ WhatsApp socket temporarily reconnecting... waiting up to 10 seconds before broadcasting...");
-    for (let i = 0; i < 10; i++) {
-      await new Promise(r => setTimeout(r, 1000));
-      if (sock && botState.status === "connected") break;
-    }
-  }
-
-  if (!sock || botState.status !== "connected") {
-    addLog("❌ Broadcast deferred: WhatsApp bot is currently reconnecting.");
-    return { success: false, error: "Bot is not connected to WhatsApp" };
-  }
 
   let deliveredCount = 0;
   let failedCount = 0;
@@ -523,7 +517,7 @@ async function startWhatsAppBot() {
       botState.userInfo = {
         id: sock.user.id,
         name: sock.user.name || "UIU Student",
-        phone: sock.user.id.split(":")[0]
+        phone: sock.user.id.split(":")[0].split("@")[0]
       };
 
       // Sync lifetime subscribers directly from PostgreSQL
@@ -654,15 +648,26 @@ async function startWhatsAppBot() {
         addLog(`💬 Sent sample broadcast test to ${remoteJid}`);
       }
 
-      // 3. ZERO-COMMAND WORKFLOW: ANY MESSAGE (HI / HELLO / TEXT)
-      // Automatically subscribes the user permanently & sends full all-in-one daily status!
+      // 3. ZERO-COMMAND WORKFLOW: ANY MESSAGE (HI / HELLO / KEYWORD)
+      // Automatically subscribes the user permanently & replies directly in WhatsApp!
       else {
         addSubscriber(remoteJid, cleanSenderName, cleanSenderPhone);
         updateUserStatus(remoteJid, "subscribed");
         const status = getCountdownStatus();
-        const reply = formatWelcomeReply(status);
+        let reply = "";
+        if (lower.includes("routine") || lower.includes("calendar")) {
+          reply = formatRoutineReply(loadCalendarData());
+        } else if (lower.includes("installment") || lower.includes("fee") || lower.includes("kisti")) {
+          reply = formatInstallmentsReply(status);
+        } else if (lower.includes("mid")) {
+          reply = formatCountdownReply(status, "mid");
+        } else if (lower.includes("final")) {
+          reply = formatCountdownReply(status, "final");
+        } else {
+          reply = formatWelcomeReply(status);
+        }
         await sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-        addLog(`👋 User message received ("${text}"). Auto-subscribed & sent All-In-One status to ${remoteJid}`);
+        addLog(`👋 WhatsApp reply sent for "${text}" & auto-subscribed ${remoteJid}`);
       }
     }
   });

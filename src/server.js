@@ -78,11 +78,13 @@ function startWebServer(port = 3000) {
     res.sendFile(path.join(__dirname, "../public/chat.html"));
   });
 
-  // Direct Chat QR Code Image: Scannable by phone camera to open Web Chat Box directly!
+  // Direct WhatsApp QR Code Image: Scannable by phone camera to open WhatsApp chat with the bot!
   app.get("/qr/chat", async (req, res) => {
-    const host = req.get("host") || "uiu-whats-app-update-exam-days-bot.onrender.com";
-    const proto = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
-    const link = `${proto}://${host}/chat`;
+    const phone = botState.userInfo?.phone;
+    if (!phone || botState.status !== "connected") {
+      return res.status(503).send("WhatsApp bot is not connected yet. Scan /qr first.");
+    }
+    const link = `https://wa.me/${phone}?text=Hi`;
     try {
       const buffer = await QRCode.toBuffer(link, {
         width: 380,
@@ -93,7 +95,7 @@ function startWebServer(port = 3000) {
         }
       });
       res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "public, max-age=60");
+      res.setHeader("Cache-Control", "no-store");
       res.send(buffer);
     } catch (err) {
       res.status(500).send("Error generating QR");
@@ -243,9 +245,8 @@ function startWebServer(port = 3000) {
     const countdown = getCountdownStatus();
     const calendar = loadCalendarData();
     const subscribers = loadSubscribers();
-    const host = req.get("host") || "uiu-whats-app-update-exam-days-bot.onrender.com";
-    const proto = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
-    const chatLink = `${proto}://${host}/chat`;
+    const phone = botState.userInfo?.phone;
+    const waLink = phone && botState.status === "connected" ? `https://wa.me/${phone}?text=Hi` : null;
 
     res.json({
       bot: {
@@ -254,8 +255,7 @@ function startWebServer(port = 3000) {
         lastBroadcast: botState.lastBroadcast,
         qrDataUrl: botState.qrDataUrl,
         logs: botState.logs,
-        waLink: chatLink,
-        chatLink
+        waLink
       },
       config: loadConfig(),
       countdown,

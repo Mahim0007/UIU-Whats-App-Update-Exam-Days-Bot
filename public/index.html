@@ -1292,8 +1292,8 @@
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 0.75rem;">
-      <a id="headerWaBtn" href="/chat" class="header-wa-cta">
-        💬 Open Web Message Box
+      <a id="headerWaBtn" href="#qrSection" class="header-wa-cta">
+        💬 Open in WhatsApp
       </a>
       <div id="connectionBadge" class="badge-status status-disconnected">
         <span class="pulse-dot"></span>
@@ -1425,26 +1425,26 @@
           </div>
         </div>
 
-        <!-- Dedicated Mobile Web Message Box Card -->
+        <!-- Dedicated Mobile/PC WhatsApp Direct Link Card -->
         <div class="side-card mobile-wa-card">
-          <div class="side-card-badge wa-badge">📱 Mobile Message Box</div>
-          <h4>মোবাইল থেকে সরাসরি চ্যাট</h4>
+          <div class="side-card-badge wa-badge">📱 WhatsApp (Mobile & PC)</div>
+          <h4>সরাসরি WhatsApp-এ চ্যাট</h4>
           <p class="side-card-desc">
-            যেকোনো মোবাইল বা ডিভাইস থেকে সরাসরি ফুলস্ক্রিন মেসেজ বক্সে চ্যাট করতে নিচের বাটনে ক্লিক করুন বা কিউআর কোড স্ক্যান করুন:
+            মোবাইল বা পিসির WhatsApp থেকে বটের সাথে চ্যাট করে অটো-আপডেট পেতে নিচের বাটনে ক্লিক করুন বা QR স্ক্যান করুন:
           </p>
           <div style="display: flex; gap: 0.6rem; align-items: center;">
-            <a id="heroWaBtn" href="/chat" class="btn-wa-compact">
-              💬 Open Fullscreen Chat
+            <a id="heroWaBtn" href="#qrSection" class="btn-wa-compact">
+              💬 Open in WhatsApp
             </a>
             <button type="button" id="btnHeroCopyLink" class="btn-copy-clean" style="padding: 0.65rem 0.9rem;">📋 Copy Link</button>
           </div>
-          <input type="hidden" id="heroWaLinkInput" value="/chat">
+          <input type="hidden" id="heroWaLinkInput" value="">
           
-          <div class="side-qr-preview">
-            <img id="heroChatQrImg" src="/qr/chat" alt="Scan to open Web Message Box" />
+          <div id="heroChatQrWrap" class="side-qr-preview" style="display: none;">
+            <img id="heroChatQrImg" src="" alt="Scan to open WhatsApp" />
             <div>
               <div style="font-weight: 700; color: #fff; font-size: 0.82rem;">Scan with Phone Camera</div>
-              <span>ফোনের ক্যামেরা দিয়ে স্ক্যান করলেই সরাসরি মেসেজ বক্স ওপেন হয়ে যাবে।</span>
+              <span>ফোনের ক্যামেরা দিয়ে স্ক্যান করলেই সরাসরি আপনার WhatsApp অ্যাপ ওপেন হয়ে যাবে।</span>
             </div>
           </div>
         </div>
@@ -1925,15 +1925,28 @@
       }
 
       // 5. Update WhatsApp Chat Link Everywhere
+      const heroBtn = document.getElementById('heroWaBtn');
+      const headBtn = document.getElementById('headerWaBtn');
+      const linkInp = document.getElementById('heroWaLinkInput');
+      const shareInput = document.getElementById('waShareUrl');
+      const qrWrap = document.getElementById('heroChatQrWrap');
+      const qrImg = document.getElementById('heroChatQrImg');
+
       if (bot.waLink) {
-        const heroBtn = document.getElementById('heroWaBtn');
-        if (heroBtn) heroBtn.href = bot.waLink;
-        const headBtn = document.getElementById('headerWaBtn');
-        if (headBtn) headBtn.href = bot.waLink;
-        const linkInp = document.getElementById('heroWaLinkInput');
+        if (heroBtn) { heroBtn.href = bot.waLink; heroBtn.target = '_blank'; heroBtn.rel = 'noopener'; }
+        if (headBtn) { headBtn.href = bot.waLink; headBtn.target = '_blank'; headBtn.rel = 'noopener'; }
         if (linkInp) linkInp.value = bot.waLink;
-        const shareInput = document.getElementById('waShareUrl');
         if (shareInput) shareInput.value = bot.waLink;
+        if (qrWrap) qrWrap.style.display = 'flex';
+        if (qrImg && !qrImg.src.includes('/qr/chat')) {
+          qrImg.src = '/qr/chat?t=' + Date.now();
+        }
+      } else {
+        if (heroBtn) { heroBtn.href = '#qrSection'; heroBtn.removeAttribute('target'); }
+        if (headBtn) { headBtn.href = '#qrSection'; headBtn.removeAttribute('target'); }
+        if (linkInp) linkInp.value = '';
+        if (shareInput) shareInput.value = 'Connect WhatsApp first (Scan QR)...';
+        if (qrWrap) qrWrap.style.display = 'none';
       }
 
       // 6. Connection Status Display
