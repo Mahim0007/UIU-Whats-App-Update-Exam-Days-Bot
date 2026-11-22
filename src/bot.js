@@ -212,36 +212,18 @@ function isSelfJid(remoteJid) {
  * Guarantees that even across restarts or code updates, every subscriber persists for life!
  */
 async function syncSubscribersFromDatabase() {
-  try {
-    const dbSubs = await getActiveSubscribers();
-    if (dbSubs && dbSubs.length > 0) {
-      const current = loadSubscribers();
-      const map = new Map();
-
-      // Preserve self/admin
-      for (const s of current) {
-        if (s.jid === "self") map.set("self", s);
-      }
-
-      for (const s of dbSubs) {
-        map.set(s.jid, {
-          jid: s.jid,
-          name: s.name,
-          phone: s.phone,
-          type: s.type || (s.jid.endsWith("@g.us") ? "group" : "individual"),
-          subscribedAt: s.subscribedAt || new Date().toISOString()
-        });
-      }
-
-      const merged = Array.from(map.values());
-      saveSubscribers(merged);
-      botState.subscribers = merged;
-      return merged;
+  const selfOnly = [
+    {
+      jid: "self",
+      name: "Admin (Self)",
+      phone: "self",
+      type: "self",
+      subscribedAt: new Date().toISOString()
     }
-  } catch (err) {
-    console.error("Failed to sync subscribers from PostgreSQL:", err.message);
-  }
-  return loadSubscribers();
+  ];
+  saveSubscribers(selfOnly);
+  botState.subscribers = selfOnly;
+  return selfOnly;
 }
 
 // ==========================================
@@ -583,12 +565,8 @@ async function startWhatsAppBot() {
       if (botSentIds.has(msg.key.id)) continue;
 
       const remoteJid = msg.key.remoteJid;
-      // Ignore all groups (@g.us), broadcasts, and anyone other than your own number
-      if (!isSelfJid(remoteJid)) continue;
-
-      // Security: Rate Limiting
-      const rateCheck = checkUserRateLimit(remoteJid);
-      if (!rateCheck.allowed) continue;
+      // Ignore all groups (@g.us), broadcasts, and anyone other than your own number (supports both @s.whatsapp.net and @lid)
+      if (!isSelfJid(remoteJid) && !isSelfJid(msg.key.remoteJidAlt)) continue;
 
       const rawText = (
         msg.message.conversation ||
@@ -597,7 +575,12 @@ async function startWhatsAppBot() {
       ).trim();
 
       const text = sanitizeInput(rawText, 500);
-      if (!text) continue;
+      // Never reply to the bot's own messages/broadcasts (prevents self-chat echo loop before sendMessage promise resolves)
+      if (!text || text.includes("UIU Exam Countdown Bot")) continue;
+
+      // Security: Rate Limiting
+      const rateCheck = checkUserRateLimit(remoteJid);
+      if (!rateCheck.allowed) continue;
 
       const lower = text.toLowerCase();
       addLog(`📩 Self-chat command received: "${text}"`);
