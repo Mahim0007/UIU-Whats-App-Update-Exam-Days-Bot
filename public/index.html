@@ -1950,15 +1950,15 @@
       }
 
       // 6. Connection Status Display
-      const badge = document.getElementById('connectionBadge');
+      const connBadge = document.getElementById('connectionBadge');
       const text = document.getElementById('connectionText');
       const qrSec = document.getElementById('qrSection');
       const connSec = document.getElementById('connectedSection');
       const loadSec = document.getElementById('loadingSection');
 
-      badge.className = 'badge-status';
+      connBadge.className = 'badge-status';
       if (bot.status === 'connected') {
-        badge.classList.add('status-connected');
+        connBadge.classList.add('status-connected');
         text.textContent = 'Bot Connected';
         qrSec.style.display = 'none';
         loadSec.style.display = 'none';
@@ -1969,7 +1969,7 @@
         }
 
       } else if (bot.status === 'qr_ready') {
-        badge.classList.add('status-qr');
+        connBadge.classList.add('status-qr');
         text.textContent = 'Scan QR Code';
         qrSec.style.display = 'flex';
         connSec.style.display = 'none';
@@ -1978,7 +1978,7 @@
           document.getElementById('qrImage').src = bot.qrDataUrl;
         }
       } else {
-        badge.classList.add('status-disconnected');
+        connBadge.classList.add('status-disconnected');
         text.textContent = 'Disconnected';
         qrSec.style.display = 'none';
         connSec.style.display = 'none';
