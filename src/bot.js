@@ -198,29 +198,13 @@ function trackSentMessage(sent) {
   }
 }
 
-function normalizeTargetJid(phone) {
-  if (!phone || phone === "self") return null;
-  let digits = String(phone).replace(/[^0-9]/g, "");
-  if (digits.startsWith("01") && digits.length === 11) digits = "88" + digits;
-  return digits ? `${digits}@s.whatsapp.net` : null;
-}
-
-function getAllowedTargetJid() {
-  const cfg = loadConfig();
-  const customJid = normalizeTargetJid(cfg?.targetPhone);
-  if (customJid) return customJid;
-  return sock?.user?.id ? `${sock.user.id.split(":")[0].split("@")[0]}@s.whatsapp.net` : null;
-}
-
 function isSelfJid(remoteJid) {
   if (!remoteJid || !sock?.user?.id) return false;
   if (remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) return false;
   const senderId = remoteJid.split(":")[0].split("@")[0];
   const ownerPhone = sock.user.id.split(":")[0].split("@")[0];
   const ownerLid = sock.user.lid ? sock.user.lid.split(":")[0].split("@")[0] : null;
-  const targetJid = getAllowedTargetJid();
-  const targetPhone = targetJid ? targetJid.split("@")[0] : null;
-  return senderId === ownerPhone || (ownerLid && senderId === ownerLid) || (targetPhone && senderId === targetPhone);
+  return senderId === ownerPhone || (ownerLid && senderId === ownerLid);
 }
 
 /**
@@ -284,11 +268,11 @@ async function broadcastToSubscribers(messageText, options = {}) {
     return { success: false, error: safetyCheck.reason };
   }
 
-  // Strict Target-Only Mode: ONLY send updates to the configured targetPhone (or owner's own number)
-  const selfJid = getAllowedTargetJid();
+  // Strict Self-Only Mode: ONLY send updates to the owner's own WhatsApp number (never to other users or public groups)
+  const selfJid = sock.user?.id ? `${sock.user.id.split(":")[0].split("@")[0]}@s.whatsapp.net` : null;
   if (!selfJid) {
-    addLog("❌ Cannot broadcast: Target WhatsApp JID not ready.");
-    return { success: false, error: "Target WhatsApp JID not available" };
+    addLog("❌ Cannot broadcast: Owner WhatsApp JID not ready.");
+    return { success: false, error: "Owner WhatsApp JID not available" };
   }
 
   addLog(`📢 Sending update to your own WhatsApp (${selfJid})...`);
