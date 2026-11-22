@@ -2,7 +2,8 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  Browsers
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const qrcodeTerminal = require("qrcode-terminal");
@@ -471,7 +472,8 @@ async function startSession(sessionId = "default", { isTemporary = false } = {})
   if (prev?.expireTimer) clearTimeout(prev.expireTimer);
 
   const authDir = getSessionAuthDir(sessionId);
-  if (!isTemporary) {
+  // Only restore from PostgreSQL if local creds.json does not exist yet (prevents overwriting fresh creds during 515 reconnect!)
+  if (!isTemporary && !fs.existsSync(path.join(authDir, "creds.json"))) {
     await restoreSessionAuthFromDb(sessionId, authDir);
   }
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
@@ -513,7 +515,8 @@ async function startSession(sessionId = "default", { isTemporary = false } = {})
     logger: pino({ level: "silent" }),
     printQRInTerminal: false,
     auth: state,
-    browser: ["UIU Exam Bot", "Chrome", "1.0.0"],
+    browser: Browsers.ubuntu("Chrome"),
+    connectTimeoutMs: 60000,
     syncFullHistory: false
   });
   sessionObj.sock = sessionSock;
@@ -523,7 +526,13 @@ async function startSession(sessionId = "default", { isTemporary = false } = {})
       await saveCreds();
       // Once QR is scanned, creds.me is populated before WhatsApp sends 515 restartRequired
       if (state.creds?.me) {
+        if (sessionObj.isTemporary) {
+          addLog(`📲 QR scanned for session ${sessionId}! Finishing login...`);
+        }
         sessionObj.isTemporary = false;
+        if (sessionObj.status === "qr_ready") {
+          sessionObj.status = "connecting";
+        }
         if (sessionObj.expireTimer) {
           clearTimeout(sessionObj.expireTimer);
           sessionObj.expireTimer = null;

@@ -104,27 +104,23 @@ function startWebServer(port = 3000) {
     }
   });
 
+  // Live JSON status for a single QR pairing session (used by /qr-only without page flashing)
+  app.get("/api/qr-session/:sid", (req, res) => {
+    const sid = String(req.params.sid || "").replace(/[^a-zA-Z0-9_-]/g, "");
+    res.setHeader("Cache-Control", "no-store");
+    res.json(getSessionStatus(sid));
+  });
+
   // Minimal QR-only page: EVERY visitor gets their own fresh QR code to connect (multi-user, nothing else shown)
   app.get("/qr-only", (req, res) => {
     const sid = typeof req.query.sid === "string" ? req.query.sid.replace(/[^a-zA-Z0-9_-]/g, "") : "";
-    if (!sid) {
+    if (!sid || !getSessionStatus(sid).exists) {
       const newSid = createPairingSession();
       return res.redirect(`/qr-only?sid=${encodeURIComponent(newSid)}`);
     }
 
-    const info = getSessionStatus(sid);
-    if (!info.exists) {
-      const newSid = createPairingSession();
-      return res.redirect(`/qr-only?sid=${encodeURIComponent(newSid)}`);
-    }
-
-    if (info.status === "connected") {
-      return res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;color:#22c55e;font-family:system-ui,sans-serif;font-size:1.25rem;}</style></head><body>✅ Connected</body></html>`);
-    }
-    if (info.qrDataUrl) {
-      return res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="5"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;}img{background:#fff;padding:12px;border-radius:14px;width:280px;height:280px;}</style></head><body><img src="${info.qrDataUrl}" alt="QR" /></body></html>`);
-    }
-    res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="2"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;color:#94a3b8;font-family:system-ui,sans-serif;}</style></head><body>⏳ Loading QR...</body></html>`);
+    res.setHeader("Cache-Control", "no-store");
+    res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;color:#94a3b8;font-family:system-ui,sans-serif;font-size:1.2rem;}img{background:#fff;padding:12px;border-radius:14px;width:280px;height:280px;display:none;}#msg{text-align:center;}.ok{color:#22c55e;}</style></head><body><img id="qr" alt="QR" /><div id="msg">⏳ Loading QR...</div><script>const sid=${JSON.stringify(sid)};const img=document.getElementById('qr'),msg=document.getElementById('msg');let lastQr='';async function poll(){try{const r=await fetch('/api/qr-session/'+encodeURIComponent(sid)+'?t='+Date.now());const d=await r.json();if(!d.exists){location.href='/qr-only';return;}if(d.status==='connected'){img.style.display='none';msg.className='ok';msg.textContent='✅ Connected';msg.style.display='block';return;}if(d.qrDataUrl){if(d.qrDataUrl!==lastQr){img.src=d.qrDataUrl;lastQr=d.qrDataUrl;}img.style.display='block';msg.style.display='none';}else{img.style.display='none';msg.className='';msg.textContent='⏳ Logging in...';msg.style.display='block';}}catch(e){}setTimeout(poll,2000);}poll();</script></body></html>`);
   });
 
   // Dedicated Full-Screen QR Code page for bot WhatsApp login / device linking
