@@ -1,3 +1,5 @@
+process.env.TZ = process.env.TZ || "Asia/Dhaka";
+
 /**
  * UIU Fall 2026 Exam Countdown WhatsApp Bot
  * Main Application Entry Point

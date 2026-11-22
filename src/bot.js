@@ -52,7 +52,7 @@ function loadBroadcastState() {
     if (fs.existsSync(BROADCAST_STATE_PATH)) {
       return JSON.parse(fs.readFileSync(BROADCAST_STATE_PATH, "utf-8"));
     }
-  } catch (e) {}
+  } catch (e) { }
   return { lastMorningDate: null, lastEveningDate: null };
 }
 
@@ -61,7 +61,7 @@ function saveBroadcastState(state) {
     const dir = path.dirname(BROADCAST_STATE_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(BROADCAST_STATE_PATH, JSON.stringify(state, null, 2), "utf-8");
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // Shared bot state for Web Dashboard & Terminal
@@ -378,7 +378,7 @@ async function checkAndSendMissedBroadcast() {
 function setupDailyScheduler() {
   if (scheduledTasks.length > 0) {
     for (const task of scheduledTasks) {
-      try { task.stop(); } catch (e) {}
+      try { task.stop(); } catch (e) { }
     }
     scheduledTasks = [];
   }
@@ -398,11 +398,11 @@ function setupDailyScheduler() {
     const mMin = parseInt(mMinStr, 10) || 0;
     const mCronExp = `${mMin} ${mHour} * * *`;
 
-    addLog(`⏰ [1/2] Morning schedule active for ${String(mHour).padStart(2, "0")}:${String(mMin).padStart(2, "0")} (9:00 AM)`);
+    addLog(`⏰ [1/2] Morning schedule active for ${String(mHour).padStart(2, "0")}:${String(mMin).padStart(2, "0")} (9:00 AM BD)`);
     const mTask = cron.schedule(mCronExp, async () => {
       addLog("🌅 Morning 9:00 AM schedule triggered! Broadcasting morning countdown to all subscribers...");
       await sendDailyBroadcast("morning");
-    });
+    }, { timezone: "Asia/Dhaka" });
     scheduledTasks.push(mTask);
   }
 
@@ -415,11 +415,11 @@ function setupDailyScheduler() {
     const eMin = parseInt(eMinStr, 10) || 0;
     const eCronExp = `${eMin} ${eHour} * * *`;
 
-    addLog(`⏰ [2/2] Evening schedule active for ${String(eHour).padStart(2, "0")}:${String(eMin).padStart(2, "0")} (7:00 PM)`);
+    addLog(`⏰ [2/2] Evening schedule active for ${String(eHour).padStart(2, "0")}:${String(eMin).padStart(2, "0")} (7:00 PM BD)`);
     const eTask = cron.schedule(eCronExp, async () => {
       addLog("🌙 Evening 7:00 PM schedule triggered! Broadcasting evening revision & countdown to all subscribers...");
       await sendDailyBroadcast("evening");
-    });
+    }, { timezone: "Asia/Dhaka" });
     scheduledTasks.push(eTask);
   }
 }
@@ -433,14 +433,14 @@ async function startWhatsAppBot() {
     try {
       sock.ev.removeAllListeners();
       sock.end(undefined);
-    } catch (e) {}
+    } catch (e) { }
     sock = null;
   }
 
   const authDir = path.join(__dirname, "../auth_info");
   await restoreAuthFromDb(authDir);
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
-  
+
   let version = [2, 3000, 1015901307];
   try {
     const fetched = await fetchLatestBaileysVersion();
@@ -476,7 +476,7 @@ async function startWhatsAppBot() {
     if (qr) {
       botState.status = "qr_ready";
       botState.qrRaw = qr;
-      
+
       try {
         botState.qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
         const qrPath = path.join(__dirname, "../qr.png");
@@ -544,7 +544,7 @@ async function startWhatsAppBot() {
       botState.status = "disconnected";
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      
+
       addLog(`⚠️ Connection closed (${statusCode || "unknown"}). Reconnecting: ${shouldReconnect}`);
 
       if (shouldReconnect) {
@@ -563,7 +563,7 @@ async function startWhatsAppBot() {
           if (fs.existsSync(authDir)) {
             fs.rmSync(authDir, { recursive: true, force: true });
           }
-        } catch (e) {}
+        } catch (e) { }
         addLog("❌ WhatsApp session ended or logged out. Generating new QR code in 3 seconds...");
         setTimeout(() => {
           startWhatsAppBot();
@@ -632,7 +632,7 @@ async function unlinkWhatsApp() {
     try {
       sock.ev.removeAllListeners();
       sock.end(undefined);
-    } catch (e) {}
+    } catch (e) { }
     sock = null;
   }
   botState.status = "disconnected";
@@ -640,7 +640,7 @@ async function unlinkWhatsApp() {
   botState.qrDataUrl = null;
   const authDir = path.join(__dirname, "../auth_info");
   if (fs.existsSync(authDir)) {
-    try { fs.rmSync(authDir, { recursive: true, force: true }); } catch (e) {}
+    try { fs.rmSync(authDir, { recursive: true, force: true }); } catch (e) { }
   }
   await clearAuthFromDb();
   addLog("ℹ️ Personal WhatsApp account unlinked successfully.");
