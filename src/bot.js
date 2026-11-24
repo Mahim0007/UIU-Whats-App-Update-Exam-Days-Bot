@@ -647,54 +647,7 @@ async function startSession(sessionId = "default", { isTemporary = false } = {})
     }
   });
 
-  // Strict Self-Only Mode per session: NEVER replies to public groups or other people
-  sessionSock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
-
-    for (const msg of messages) {
-      if (!msg.message) continue;
-      if (botSentIds.has(msg.key.id)) continue;
-
-      const remoteJid = msg.key.remoteJid;
-      if (!isSessionSelfJid(sessionSock, remoteJid) && !isSessionSelfJid(sessionSock, msg.key.remoteJidAlt)) continue;
-
-      const rawText = (
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        ""
-      ).trim();
-
-      const text = sanitizeInput(rawText, 500);
-      if (!text || text.includes("UIU Exam Countdown Bot")) continue;
-
-      const rateCheck = checkUserRateLimit(remoteJid);
-      if (!rateCheck.allowed) continue;
-
-      const lower = text.toLowerCase();
-      addLog(`📩 Self-chat command (${sessionId}): "${text}"`);
-
-      const status = getCountdownStatus();
-      let reply = "";
-      if (lower === "!test" || lower === "test") {
-        reply = formatDailyBroadcast(status);
-      } else if (lower.includes("routine") || lower.includes("calendar")) {
-        reply = formatRoutineReply(loadCalendarData());
-      } else if (lower.includes("installment") || lower.includes("fee") || lower.includes("kisti")) {
-        reply = formatInstallmentsReply(status);
-      } else if (lower.includes("mid")) {
-        reply = formatCountdownReply(status, "mid");
-      } else if (lower.includes("final")) {
-        reply = formatCountdownReply(status, "final");
-      } else {
-        reply = formatWelcomeReply(status);
-      }
-
-      const sent = await sessionSock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-      trackSentMessage(sent);
-      addLog(`✅ Replied in self-chat (${sessionId}) for "${text}"`);
-    }
-  });
-
+  // Auto-reply disabled: bot ONLY sends scheduled (9 AM / 7 PM) and manual broadcasts, never replies to inbox messages.
   return sessionSock;
 }
 
